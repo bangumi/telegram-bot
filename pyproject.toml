@@ -1,0 +1,105 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "telegram-bot"
+version = "0.1.0"
+description = ""
+authors = ["Trim21 <trim21.me@gmail.com>"]
+readme = "README.md"
+packages = []
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-telegram-bot = { extras = ["socks", ], version = "^20.4" }
+loguru = "^0.7.0"
+pydantic = "^2.1.1"
+redis = { extras = ["hiredis"], version = "^4.6.0" }
+yarl = "^1.9.2"
+msgspec = "^0.17.0"
+uvicorn = "^0.23.1"
+starlette = "^0.31.0"
+aiomysql = "^0.2.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.7.0"
+watchfiles = "^0.19.0"
+
+[tool.black]
+target_version = ['py310']
+
+extend-exclude = "api/v1"
+
+[tool.ruff]
+extend-exclude = [".venv", "api"]
+
+select = [
+    "B",
+    "C",
+    "E",
+    "F",
+    "G",
+    "I",
+    "N",
+    "Q",
+    "S",
+    "W",
+    "BLE",
+    #  "DJ",
+    "EXE",
+    "ICN",
+    "INP",
+    "ISC",
+    "NPY",
+    #  "DTZ",
+    #  "PTH",
+    "PD",
+    "PGH",
+    "PIE",
+    "PL",
+    "PT",
+    "PYI",
+    "RET",
+    "RSE",
+    "RUF",
+    "SIM",
+    "SLF",
+    "TCH",
+    "TID",
+    "TRY",
+    "YTT",
+]
+ignore = [
+    'N806',
+    'N802',
+    'N803',
+    'E501',
+    'BLE001',
+    'RUF002',
+    'S301',
+    'S314',
+    'S101',
+    'N815',
+    'S104',
+    'C901',
+    'ISC003',
+    'PLR0913',
+    'RUF001',
+    'SIM108',
+    'TCH003',
+    'RUF003',
+    'RET504',
+    'TRY300',
+    'TRY003',
+    'TRY201',
+    'TRY301',
+    'PLR0912',
+    'PLR0915',
+    'PLR2004',
+    'PGH003',
+]
+
+unfixable = ['F401', 'F841']
+
+target-version = "py310"
