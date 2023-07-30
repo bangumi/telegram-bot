@@ -69,7 +69,7 @@ class TelegramApplication:
 
         # on different commands - answer in Telegram
         application.add_handler(tg.ext.CommandHandler("start", self.start_command))
-        application.add_handler(tg.ext.CommandHandler("help", self.help_command))
+        application.add_handler(tg.ext.CommandHandler("help", self.start_command))
         application.add_handler(tg.ext.CommandHandler("debug", self.debug_command))
 
         application.add_error_handler(self.error_handler)
