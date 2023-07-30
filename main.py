@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import http
 import logging
 import secrets
@@ -264,7 +263,9 @@ class Watcher:
         try:
             msg: ConsumerRecord
             async for msg in consumer:
-                with contextlib.suppress(Exception):
+                with logger.catch(
+                    message="unexpected exception when parsing kafka messages"
+                ):
                     if not msg.value:
                         continue
 
