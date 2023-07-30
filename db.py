@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS telegram_notify_chat (
                 user_id,
             )
 
+    async def logout(self, *, chat_id: int):
+        conn: asyncpg.Connection
+        async with self.__pool.acquire() as conn, conn.transaction(readonly=False):
+            await conn.execute(
+                "DELETE from telegram_notify_chat where chat_id=$1",
+                chat_id,
+            )
+
     async def is_authorized_user(self, *, chat_id: int) -> Table | None:
         conn: asyncpg.Connection
         async with self.__pool.acquire() as conn, conn.transaction(readonly=True):

@@ -68,6 +68,7 @@ class TelegramApplication:
 
         # on different commands - answer in Telegram
         application.add_handler(tg.ext.CommandHandler("start", self.start_command))
+        application.add_handler(tg.ext.CommandHandler("logout", self.logout_command))
         application.add_handler(tg.ext.CommandHandler("help", self.start_command))
         application.add_handler(tg.ext.CommandHandler("debug", self.debug_command))
 
@@ -111,6 +112,13 @@ class TelegramApplication:
     ) -> None:
         logger.trace("help command")
         await update.message.reply_text("use command `/start`")
+
+    @logger.catch
+    async def logout_command(
+        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+    ):
+        logger.trace("logout command")
+        await self.db.logout(chat_id=update.effective_chat.id)
 
     @logger.catch
     async def debug_command(
@@ -220,7 +228,15 @@ class OAuthHTTPServer:
     async def start(self):
         logger.info("start http server")
         port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
-        server = uvicorn.Server(uvicorn.Config(app=self.app, host="0.0.0.0", port=port))
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app=self.app,
+                host="0.0.0.0",
+                port=port,
+                log_level=logging.WARN,
+                access_log=False,
+            )
+        )
         logger.info("http server listen on port={}", port)
         await server.serve()
 
