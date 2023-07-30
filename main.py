@@ -221,7 +221,7 @@ class OAuthHTTPServer:
     async def start(self):
         logger.info("start http server")
         port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
-        server = uvicorn.Server(uvicorn.Config(app=self.app, port=port))
+        server = uvicorn.Server(uvicorn.Config(app=self.app, host="0.0.0.0", port=port))
         logger.info("http server listen on port={}", port)
         await server.serve()
 
