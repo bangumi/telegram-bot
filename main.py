@@ -272,11 +272,23 @@ class Watcher:
                     if value.payload.op != "u":
                         continue
 
+                    if (
+                        value.payload.after.new_notify
+                        == value.payload.before.new_notify
+                    ):
+                        continue
+
+                    if not value.payload.after.new_notify:
+                        continue
+
                     user_id = value.payload.after.uid
                     if char := await self.is_watched_user_id(user_id):
                         for c in char:
                             await self.__queue.put(
-                                Item(c, f"你有 {value.payload.after.new_notify} 条新通知")
+                                Item(
+                                    c,
+                                    f"你有 {value.payload.after.new_notify} 条新通知",
+                                )
                             )
         finally:
             await consumer.stop()

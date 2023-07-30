@@ -31,6 +31,7 @@ class NotifyValue(msgspec.Struct):
 
 
 class MemberValuePayload(msgspec.Struct):
+    before: ChiiMember | None
     after: ChiiMember | None
     op: str  # 'r', 'c', 'd' ...
 
