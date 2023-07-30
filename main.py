@@ -69,6 +69,7 @@ class TelegramApplication:
 
         # on different commands - answer in Telegram
         application.add_handler(tg.ext.CommandHandler("start", self.start_command))
+        application.add_handler(tg.ext.CommandHandler("help", self.help_command))
         application.add_handler(tg.ext.CommandHandler("debug", self.debug_command))
 
         application.add_error_handler(self.error_handler)
@@ -104,6 +105,12 @@ class TelegramApplication:
             ]
         )
         await update.message.reply_text("请在60s内进行认证", reply_markup=reply_markup)
+
+    @logger.catch
+    async def help_command(
+        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        await update.message.reply_text("use command `/start`")
 
     @logger.catch
     async def debug_command(
