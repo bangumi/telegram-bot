@@ -55,7 +55,12 @@ class TelegramApplication:
     app: tg.ext.Application
     bot: tg.Bot
 
-    def __init__(self, redis: redis.Redis, db_client: db.DB):
+    __tg: TelegramApplication
+    __user_ids: dict[int, set[int]]
+    __lock: aiorwlock.RWLock()
+    __queue: asyncio.Queue[Item]
+
+    def __init__(self, redis_client: redis.Redis, db_client: db.DB):
         application = tg.ext.Application.builder()
 
         if sys.platform == "win32":
@@ -75,8 +80,14 @@ class TelegramApplication:
         application.add_error_handler(self.error_handler)
         self.app = application
         self.bot = application.bot
-        self.redis = redis
+        self.redis = redis_client
         self.db = db_client
+        self.__lock = aiorwlock.RWLock()
+        self.__queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+
+    async def init(self):
+        await self.read_from_db()
+        self.start_tasks()
 
     @logger.catch
     async def start_command(
@@ -119,6 +130,8 @@ class TelegramApplication:
     ):
         logger.trace("logout command")
         await self.db.logout(chat_id=update.effective_chat.id)
+        await self.read_from_db()
+        await update.message.reply_text("成功登出")
 
     @logger.catch
     async def debug_command(
@@ -143,128 +156,15 @@ class TelegramApplication:
         print(context.chat_data)
         print(update_str)
 
-    async def send_notification(self, chat: int, text: str):
-        await self.bot.send_message(chat, text=text)
-
-
-class OAuthHTTPServer:
-    def __init__(
-        self, redis: redis.Redis, db: DB, bot: tg.ext.Application, watcher: Watcher
-    ):
-        self.app = starlette.applications.Starlette()
-        self.app.add_route("/", self.index_path, ["GET"])
-        self.app.add_route("/redirect", self.oauth_redirect, ["GET"])
-        self.app.add_route("/callback", self.oauth_callback, ["GET"])
-        self.redirect_url = str(config.EXTERNAL_HTTP_ADDRESS.with_path("/callback"))
-
-        self.redis = redis
-
-        self.http_client = httpx.AsyncClient()
-        self.db = db
-        self.tg = bot
-        self.watcher = watcher
-
-    async def index_path(self, request: Request) -> Response:
-        return Response("index page")
-
-    async def oauth_redirect(self, request: Request) -> Response:
-        return RedirectResponse(
-            str(
-                yarl.URL.build(
-                    scheme="https",
-                    host="bgm.tv",
-                    path="/oauth/authorize",
-                    query={
-                        "client_id": config.BANGUMI_APP_ID,
-                        "response_type": "code",
-                        "redirect_uri": self.redirect_url,
-                        "state": request.query_params.get("state"),
-                    },
-                )
-            )
-        )
-
-    async def oauth_callback(self, request: Request) -> Response:
-        code = request.query_params.get("code")
-        state = request.query_params.get("state")
-        if not code or not state:
-            raise HTTPException(
-                http.HTTPStatus.BAD_REQUEST,
-                detail="非法请求，请使用telegram重新获取认证链接",
-            )
-        redis_state_value_raw = await self.redis.get(state_to_redis_key(state))
-        if redis_state_value_raw is None:
-            raise HTTPException(
-                http.HTTPStatus.BAD_REQUEST,
-                detail="非法请求，请使用telegram重新获取认证链接",
-            )
-
-        redis_state = msgspec.json.decode(redis_state_value_raw, type=RedisOAuthState)
-
-        resp = await self.http_client.post(
-            "https://bgm.tv/oauth/access_token",
-            data={
-                "client_id": config.BANGUMI_APP_ID,
-                "client_secret": config.BANGUMI_APP_SECRET,
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": self.redirect_url,
-            },
-        )
-        if resp.status_code >= 300:
-            logger.error("bad oauth response", data=resp.json())
-            raise HTTPException(http.HTTPStatus.BAD_GATEWAY, "请尝试重新认证")
-        data = msgspec.json.decode(resp.text, type=BangumiOAuthResponse)
-
-        await self.db.insert_chat_bangumi_map(
-            user_id=data.user_id, chat_id=redis_state.chat_id
-        )
-        await self.tg.bot.send_message(
-            chat_id=redis_state.chat_id, text=f"已经成功关联用户 {data.user_id}"
-        )
-
-        return PlainTextResponse("你已经成功认证，请关闭页面返回 telegram")
-
-    async def start(self):
-        logger.info("start http server")
-        port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
-        server = uvicorn.Server(
-            uvicorn.Config(
-                app=self.app,
-                host="0.0.0.0",
-                port=port,
-                log_level=logging.WARN,
-                access_log=False,
-            )
-        )
-        logger.info("http server listen on port={}", port)
-        await server.serve()
-
-
-class Watcher:
-    __tg: TelegramApplication
-    __user_ids: dict[int, set[int]]
-    __lock: aiorwlock.RWLock()
-    __queue: asyncio.Queue[Item]
-
-    def __init__(
-        self,
-        db: db.DB,
-        tg_app: TelegramApplication,
-        queue: asyncio.Queue[Item],
-    ):
-        self.__user_ids = {}
-        self.__lock = aiorwlock.RWLock()
-        self.__db = db
-        self.__tg = tg_app
-        self.__queue = queue
+    async def send_notification(self, chat_id: int, text: str):
+        await self.bot.send_message(chat_id=chat_id, text=text)
 
     async def is_watched_user_id(self, user_id: int) -> set[int] | None:
         async with self.__lock.reader:
             return self.__user_ids.get(user_id)
 
     async def read_from_db(self):
-        rr = await self.__db.get_watched_users()
+        rr = await self.db.get_watched_users()
         async with self.__lock.writer:
             self.__user_ids = rr
 
@@ -322,19 +222,109 @@ class Watcher:
         loop.create_task(self.start_kafka_broker())
 
 
+class OAuthHTTPServer:
+    def __init__(self, redis: redis.Redis, db: DB, bot: TelegramApplication):
+        self.app = starlette.applications.Starlette()
+        self.app.add_route("/", self.index_path, ["GET"])
+        self.app.add_route("/redirect", self.oauth_redirect, ["GET"])
+        self.app.add_route("/callback", self.oauth_callback, ["GET"])
+        self.redirect_url = str(config.EXTERNAL_HTTP_ADDRESS.with_path("/callback"))
+
+        self.redis = redis
+
+        self.http_client = httpx.AsyncClient()
+        self.db = db
+        self.tg = bot
+
+    async def index_path(self, request: Request) -> Response:
+        return Response("index page")
+
+    async def oauth_redirect(self, request: Request) -> Response:
+        return RedirectResponse(
+            str(
+                yarl.URL.build(
+                    scheme="https",
+                    host="bgm.tv",
+                    path="/oauth/authorize",
+                    query={
+                        "client_id": config.BANGUMI_APP_ID,
+                        "response_type": "code",
+                        "redirect_uri": self.redirect_url,
+                        "state": request.query_params.get("state"),
+                    },
+                )
+            )
+        )
+
+    async def oauth_callback(self, request: Request) -> Response:
+        code = request.query_params.get("code")
+        state = request.query_params.get("state")
+        if not code or not state:
+            raise HTTPException(
+                http.HTTPStatus.BAD_REQUEST,
+                detail="非法请求，请使用telegram重新获取认证链接",
+            )
+        redis_state_value_raw = await self.redis.get(state_to_redis_key(state))
+        if redis_state_value_raw is None:
+            raise HTTPException(
+                http.HTTPStatus.BAD_REQUEST,
+                detail="非法请求，请使用telegram重新获取认证链接",
+            )
+
+        redis_state = msgspec.json.decode(redis_state_value_raw, type=RedisOAuthState)
+
+        resp = await self.http_client.post(
+            "https://bgm.tv/oauth/access_token",
+            data={
+                "client_id": config.BANGUMI_APP_ID,
+                "client_secret": config.BANGUMI_APP_SECRET,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": self.redirect_url,
+            },
+        )
+        if resp.status_code >= 300:
+            logger.error("bad oauth response", data=resp.json())
+            raise HTTPException(http.HTTPStatus.BAD_GATEWAY, "请尝试重新认证")
+        data = msgspec.json.decode(resp.text, type=BangumiOAuthResponse)
+
+        await self.db.insert_chat_bangumi_map(
+            user_id=data.user_id, chat_id=redis_state.chat_id
+        )
+
+        await self.tg.send_notification(
+            chat_id=redis_state.chat_id, text=f"已经成功关联用户 {data.user_id}"
+        )
+
+        await self.tg.read_from_db()
+
+        return PlainTextResponse("你已经成功认证，请关闭页面返回 telegram")
+
+    async def start(self):
+        logger.info("start http server")
+        port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app=self.app,
+                host="0.0.0.0",
+                port=port,
+                log_level=logging.WARN,
+                access_log=False,
+            )
+        )
+        logger.info("http server listen on port={}", port)
+        await server.serve()
+
+
 async def start() -> None:
     redis_client = redis.from_url(str(config.REDIS_DSN))
 
     db = await create_db()
 
-    tg_app = TelegramApplication(redis=redis_client, db_client=db)
+    tg_app = TelegramApplication(redis_client=redis_client, db_client=db)
+    await tg_app.init()
 
-    q: asyncio.Queue[Item] = asyncio.Queue(maxsize=config.QUEUE_SIZE)
-
-    w = Watcher(db=db, tg_app=tg_app, queue=q)
-    await w.read_from_db()
-
-    http_server = OAuthHTTPServer(redis=redis_client, db=db, bot=tg_app.app, watcher=w)
+    http_server = OAuthHTTPServer(redis=redis_client, db=db, bot=tg_app.app)
     async with tg_app.app:
         await tg_app.app.initialize()
         await tg_app.app.start()
@@ -342,7 +332,6 @@ async def start() -> None:
 
         logger.info("telegram bot start")
 
-        w.start_tasks()
         await http_server.start()
 
 
