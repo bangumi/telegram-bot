@@ -19,7 +19,7 @@ class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
     BANGUMI_APP_ID: str = os.environ["BANGUMI_APP_ID"]
     BANGUMI_APP_SECRET: str = os.environ["BANGUMI_APP_SECRET"]
 
-    HTTP_PORT: str | None = os.environ.get("HTTP_PORT")
+    HTTP_PORT: int | None = os.environ.get("HTTP_PORT")
 
     QUEUE_SIZE: int = os.environ.get("QUEUE_SIZE") or 1  # type: ignore
 
