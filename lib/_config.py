@@ -5,6 +5,7 @@ import yarl
 from pydantic import (
     BaseModel,
     KafkaDsn,
+    PostgresDsn,
     RedisDsn,
     field_validator,
 )
@@ -24,11 +25,7 @@ class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
 
     REDIS_DSN: RedisDsn = os.environ["REDIS_DSN"]
 
-    MYSQL_HOST: str = os.getenv("MYSQL_HOST") or "127.0.0.1"  # type: ignore
-    MYSQL_PORT: int = os.getenv("MYSQL_PORT") or 3306  # type: ignore
-    MYSQL_USER: str = os.getenv("MYSQL_USER") or "user"  # type: ignore
-    MYSQL_PASS: str = os.getenv("MYSQL_PASS") or "password"  # type: ignore
-    MYSQL_DB: str = os.getenv("MYSQL_DB") or "bangumi"  # type: ignore
+    PG_DSN: PostgresDsn = os.environ["PG_DSN"]
 
     KAFKA_BROKER: KafkaDsn = os.environ["KAFKA_DSN"]
 

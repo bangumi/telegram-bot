@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-import aiomysql
+import asyncpg
 import pydantic
 
 from lib import config
@@ -13,56 +13,63 @@ class Table(pydantic.BaseModel):
 
 
 async def create_db():
-    return DB(
-        pool=await aiomysql.create_pool(
-            host=config.MYSQL_HOST,
-            port=config.MYSQL_PORT,
-            user=config.MYSQL_USER,
-            password=config.MYSQL_PASS,
-            db=config.MYSQL_DB,
-            autocommit=False,
-        ),
+    db = DB(
+        pool=await asyncpg.create_pool(dsn=str(config.PG_DSN)),
     )
+    await db.init()
+    return db
 
 
 class DB:
-    def __init__(self, pool: aiomysql.Pool):
+    __pool: asyncpg.Pool
+
+    def __init__(self, pool: asyncpg.Pool):
         self.__pool = pool
 
-    async def insert_chat_bangumi_map(self, *, chat_id: int, user_id: int):
-        conn: aiomysql.Connection
-        cur: aiomysql.Cursor
-        async with self.__pool.acquire() as conn, conn.cursor() as cur:
-            await cur.execute(
-                "REPLACE INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES (%s, %s, 0)",
-                (chat_id, user_id),
+    async def init(self):
+        conn: asyncpg.Connection
+        async with self.__pool.acquire() as conn, conn.transaction():
+            await conn.fetch(
+                """
+CREATE TABLE IF NOT EXISTS telegram_notify_chat (
+    chat_id bigint,
+    user_id bigint,
+    disabled int2,
+    primary key (chat_id, user_id)
+);
+                """
             )
-            await conn.commit()
+
+    async def insert_chat_bangumi_map(self, *, chat_id: int, user_id: int):
+        conn: asyncpg.Connection
+        async with self.__pool.acquire() as conn, conn.transaction(readonly=False):
+            await conn.execute(
+                "INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)",
+                chat_id,
+                user_id,
+            )
 
     async def is_authorized_user(self, *, chat_id: int) -> Table | None:
-        conn: aiomysql.Connection
-        cur: aiomysql.Cursor
-        async with self.__pool.acquire() as conn, conn.cursor() as cur:
-            rr = await cur.execute(
-                "SELECT chat_id, user_id, disabled from telegram_notify_chat where chat_id=%s",
-                (chat_id,),
+        conn: asyncpg.Connection
+        async with self.__pool.acquire() as conn, conn.transaction(readonly=True):
+            rr = await conn.fetchrow(
+                "SELECT chat_id, user_id, disabled from telegram_notify_chat where chat_id=$1",
+                chat_id,
             )
             if rr:
-                r = await cur.fetchone()
-                return Table(chat_id=r[0], user_id=r[1], disabled=r[2])
+                print(rr)
+                return Table(chat_id=rr[0], user_id=rr[1], disabled=rr[2])
             return None
 
     async def get_watched_users(self) -> dict[int, set[int]]:
-        conn: aiomysql.Connection
-        cur: aiomysql.Cursor
-        async with self.__pool.acquire() as conn, conn.cursor() as cur:
-            rr = await cur.execute(
+        conn: asyncpg.Connection
+        async with self.__pool.acquire() as conn, conn.transaction(readonly=True):
+            rr = await conn.fetch(
                 "SELECT user_id, chat_id from telegram_notify_chat where disabled = 0"
             )
             if rr:
-                r = await cur.fetchall()
                 d = defaultdict(set)
-                for user_id, chat_id in r:
+                for user_id, chat_id in rr:
                     d[user_id].add(chat_id)
                 return d
             return {}
