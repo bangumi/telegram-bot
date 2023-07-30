@@ -324,7 +324,7 @@ async def start() -> None:
     tg_app = TelegramApplication(redis_client=redis_client, db_client=db)
     await tg_app.init()
 
-    http_server = OAuthHTTPServer(redis=redis_client, db=db, bot=tg_app.app)
+    http_server = OAuthHTTPServer(redis=redis_client, db=db, bot=tg_app)
     async with tg_app.app:
         await tg_app.app.initialize()
         await tg_app.app.start()
