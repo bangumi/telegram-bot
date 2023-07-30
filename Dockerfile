@@ -21,6 +21,6 @@ RUN pip install -r requirements.txt --no-cache-dir
 
 WORKDIR /app
 
-ENTRYPOINT [ "python", "./start_grpc_server.py" ]
+ENTRYPOINT [ "python", "./main.py" ]
 
 COPY . ./
