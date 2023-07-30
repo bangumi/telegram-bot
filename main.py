@@ -83,7 +83,7 @@ class TelegramApplication:
         self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Send a message when the command /help is issued."""
-        logger.info("help command")
+        logger.trace("start command")
         if user := await self.db.is_authorized_user(chat_id=update.effective_chat.id):
             await update.message.reply_text(f"你已经作为用户 {user.user_id} 成功进行认证")
             return
@@ -110,12 +110,14 @@ class TelegramApplication:
     async def help_command(
         self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
+        logger.trace("help command")
         await update.message.reply_text("use command `/start`")
 
     @logger.catch
     async def debug_command(
         self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
+        logger.trace("debug command")
         await update.message.reply_text(f"chat_id: {update.effective_chat.id}")
 
     @logger.catch
