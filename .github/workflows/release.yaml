@@ -1,0 +1,50 @@
+name: release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: "ghcr.io/${{ github.repository_owner }}/telegram-bot"
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.sha }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - run: echo "SHA=$(git show --no-patch --no-notes --date=short-local --pretty='%as-%h')" >> $GITHUB_ENV
+        env:
+          TZ: UTC
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=ref,event=branch,suffix=-${{ env.SHA }}
+
+            type=raw,value=${{ env.SHA }}
+
+      - uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build Final Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./
+          provenance: false
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

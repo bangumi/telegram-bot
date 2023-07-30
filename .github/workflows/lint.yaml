@@ -1,0 +1,27 @@
+name: lint
+
+on:
+  push:
+    branches-ignore:
+      - renovate/**
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - "**.md"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - uses: trim21/setup-poetry@dist/v1
+      - uses: trim21/install-poetry-project@dist/v1
+      - uses: trim21/actions/pre-commit@master
