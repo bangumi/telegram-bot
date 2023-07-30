@@ -213,7 +213,7 @@ class TelegramApplication:
     async def start_queue_consumer(self):
         while True:
             chat_id, text = await self.__queue.get()
-            await self.__tg.send_notification(chat_id, text)
+            await self.send_notification(chat_id, text)
             self.__queue.task_done()
 
     def start_tasks(self):
