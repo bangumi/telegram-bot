@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import http
 import logging
@@ -5,6 +7,7 @@ import secrets
 import sys
 import traceback
 
+import aiorwlock
 import httpx
 import msgspec.json
 import redis.asyncio as redis
@@ -14,6 +17,7 @@ import telegram as tg
 import telegram.ext
 import uvicorn
 import yarl
+from aiokafka import AIOKafkaConsumer
 from loguru import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -42,6 +46,9 @@ def state_to_redis_key(state: str):
 
 
 class TelegramApplication:
+    app: tg.ext.Application
+    bot: tg.Bot
+
     def __init__(self, redis: redis.Redis, db_client: db.DB):
         application = tg.ext.Application.builder()
 
@@ -55,15 +62,17 @@ class TelegramApplication:
 
         # on different commands - answer in Telegram
         application.add_handler(tg.ext.CommandHandler("start", self.start_command))
+        application.add_handler(tg.ext.CommandHandler("debug", self.debug_command))
 
         application.add_error_handler(self.error_handler)
         self.app = application
+        self.bot = application.bot
         self.redis = redis
         self.db = db_client
 
     @logger.catch
     async def start_command(
-            self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Send a message when the command /help is issued."""
         logger.info("help command")
@@ -90,34 +99,35 @@ class TelegramApplication:
         await update.message.reply_text("请在60s内进行认证", reply_markup=reply_markup)
 
     @logger.catch
-    async def error_handler(
-            self, update: object, context: tg.ext.ContextTypes.DEFAULT_TYPE
+    async def debug_command(
+        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Log the error and send a telegram message to notify the developer."""
-        # Log the error before we do anything else, so we can see it even if something breaks.
-        logger.error("Exception while handling an update:", exc_info=context.error)
+        await update.message.reply_text(f"chat_id: {update.effective_chat.id}")
 
-        # traceback.format_exception returns the usual python message about an exception, but as a
-        # list of strings rather than a single string, so we have to join them together.
+    @logger.catch
+    async def error_handler(
+        self, update: object, context: tg.ext.ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        logger.error("Exception while handling an update:", exc_info=context.error)
         tb_list = traceback.format_exception(
             None, context.error, context.error.__traceback__
         )
         tb_string = "".join(tb_list)
 
-        # Build the message with some markup and additional information about what happened.
-        # You might need to add some logic to deal with messages longer than the 4096 character limit.
         update_str = update.to_dict() if isinstance(update, tg.Update) else str(update)
         print(tb_string)
         print(context.user_data)
         print(context.chat_data)
         print(update_str)
 
-    async def _save_user_chat_map(self, user_id: int, chat: int):
-        pass
+    async def send_notification(self, chat: int):
+        await self.bot.send_message(chat, text="你有新通知")
 
 
 class OAuthHTTPServer:
-    def __init__(self, redis: redis.Redis, db: DB, bot: tg.ext.Application):
+    def __init__(
+        self, redis: redis.Redis, db: DB, bot: tg.ext.Application, watcher: Watcher
+    ):
         self.app = starlette.applications.Starlette()
         self.app.add_route("/", self.index_path, ["GET"])
         self.app.add_route("/redirect", self.oauth_redirect, ["GET"])
@@ -129,6 +139,7 @@ class OAuthHTTPServer:
         self.http_client = httpx.AsyncClient()
         self.db = db
         self.tg = bot
+        self.watcher = watcher
 
     async def index_path(self, request: Request) -> Response:
         return Response("index page")
@@ -154,10 +165,16 @@ class OAuthHTTPServer:
         code = request.query_params.get("code")
         state = request.query_params.get("state")
         if not code or not state:
-            raise HTTPException(http.HTTPStatus.BAD_REQUEST, "非法请求，请使用telegram重新获取认证链接")
+            raise HTTPException(
+                http.HTTPStatus.BAD_REQUEST,
+                detail="非法请求，请使用telegram重新获取认证链接",
+            )
         redis_state_value_raw = await self.redis.get(state_to_redis_key(state))
         if redis_state_value_raw is None:
-            raise HTTPException(http.HTTPStatus.BAD_REQUEST, "非法请求，请使用telegram重新获取认证链接")
+            raise HTTPException(
+                http.HTTPStatus.BAD_REQUEST,
+                detail="非法请求，请使用telegram重新获取认证链接",
+            )
 
         redis_state = msgspec.json.decode(redis_state_value_raw, type=RedisOAuthState)
 
@@ -193,20 +210,84 @@ class OAuthHTTPServer:
         await server.serve()
 
 
+class Watcher:
+    __tg: TelegramApplication
+    __user_ids: dict[int, set[int]]
+    __lock: aiorwlock.RWLock()
+    __queue: asyncio.Queue[int]
+
+    def __init__(
+        self, db: db.DB, tg_app: TelegramApplication, queue: asyncio.Queue[int]
+    ):
+        self.__user_ids = {}
+        self.__lock = aiorwlock.RWLock()
+        self.__db = db
+        self.__tg = tg_app
+        self.__queue = queue
+
+    async def is_watched_user_id(self, user_id: int) -> set[int] | None:
+        async with self.__lock.reader:
+            return self.__user_ids.get(user_id)
+
+    async def read_from_db(self):
+        rr = await self.__db.get_watched_users()
+        async with self.__lock.writer:
+            self.__user_ids = rr
+
+    async def start_kafka_broker(self):
+        logger.info("start_kafka_broker")
+        consumer = AIOKafkaConsumer(
+            "debezium.chii.bangumi.chii_subject_interests",
+            bootstrap_servers=f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
+            group_id="tg-notify-bot",
+        )
+        await consumer.start()
+        try:
+            # Consume messages
+            async for msg in consumer:
+                print("consumed: ", msg.topic, msg.partition, msg.offset, msg.timestamp)
+                user_id = 0
+                if char := await self.is_watched_user_id(user_id):
+                    for c in char:
+                        await self.__queue.put(c)
+        finally:
+            # Will leave consumer group; perform autocommit if enabled.
+            await consumer.stop()
+
+    async def start_queue_consumer(self):
+        while True:
+            chat_id = await self.__queue.get()
+            await self.__tg.send_notification(chat_id)
+            self.__queue.task_done()
+
+    def start_tasks(self):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.start_queue_consumer())
+        loop.create_task(self.start_kafka_broker())
+
+
 async def start() -> None:
     redis_client = redis.from_url(str(config.REDIS_DSN))
 
     db = await create_db()
 
-    app = TelegramApplication(redis=redis_client, db_client=db)
-    async with app.app:
-        await app.app.initialize()
-        await app.app.start()
-        await app.app.updater.start_polling(allowed_updates=tg.Update.ALL_TYPES)
+    tg_app = TelegramApplication(redis=redis_client, db_client=db)
+
+    q = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+
+    w = Watcher(db=db, tg_app=tg_app, queue=q)
+    await w.read_from_db()
+
+    http_server = OAuthHTTPServer(redis=redis_client, db=db, bot=tg_app.app, watcher=w)
+    async with tg_app.app:
+        await tg_app.app.initialize()
+        await tg_app.app.start()
+        await tg_app.app.updater.start_polling(allowed_updates=tg.Update.ALL_TYPES)
 
         logger.info("telegram bot start")
 
-        await OAuthHTTPServer(redis=redis_client, db=db, bot=app.app).start()
+        w.start_tasks()
+        await http_server.start()
 
 
 def main() -> None:

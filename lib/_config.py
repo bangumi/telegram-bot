@@ -2,7 +2,12 @@ import os
 import sys
 
 import yarl
-from pydantic import AnyHttpUrl, BaseModel, HttpUrl, MySQLDsn, RedisDsn, field_validator
+from pydantic import (
+    BaseModel,
+    KafkaDsn,
+    RedisDsn,
+    field_validator,
+)
 
 
 class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
@@ -15,6 +20,8 @@ class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
 
     HTTP_PORT: str | None = os.environ.get("HTTP_PORT")
 
+    QUEUE_SIZE: int = os.environ.get("QUEUE_SIZE") or 10  # type: ignore
+
     REDIS_DSN: RedisDsn = os.environ["REDIS_DSN"]
 
     MYSQL_HOST: str = os.getenv("MYSQL_HOST") or "127.0.0.1"  # type: ignore
@@ -22,6 +29,8 @@ class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
     MYSQL_USER: str = os.getenv("MYSQL_USER") or "user"  # type: ignore
     MYSQL_PASS: str = os.getenv("MYSQL_PASS") or "password"  # type: ignore
     MYSQL_DB: str = os.getenv("MYSQL_DB") or "bangumi"  # type: ignore
+
+    KAFKA_BROKER: KafkaDsn = os.environ["KAFKA_DSN"]
 
     EXTERNAL_HTTP_ADDRESS: yarl.URL = os.environ.get(
         "EXTERNAL_HTTP_ADDRESS", "http://127.0.0.1:4098"
