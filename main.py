@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import http
 import logging
 import secrets
 import sys
 import traceback
+from typing import NamedTuple
 
 import aiorwlock
 import httpx
@@ -17,7 +19,7 @@ import telegram as tg
 import telegram.ext
 import uvicorn
 import yarl
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, ConsumerRecord
 from loguru import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -25,12 +27,17 @@ from starlette.responses import PlainTextResponse, RedirectResponse, Response
 
 import db
 from db import DB, create_db
-from lib import config
+from lib import config, debezium
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logging.getLogger("httpx").setLevel(logging.WARN)
+
+
+class Item(NamedTuple):
+    chat_id: int
+    text: str
 
 
 class RedisOAuthState(msgspec.Struct):
@@ -120,8 +127,8 @@ class TelegramApplication:
         print(context.chat_data)
         print(update_str)
 
-    async def send_notification(self, chat: int):
-        await self.bot.send_message(chat, text="你有新通知")
+    async def send_notification(self, chat: int, text: str):
+        await self.bot.send_message(chat, text=text)
 
 
 class OAuthHTTPServer:
@@ -214,10 +221,13 @@ class Watcher:
     __tg: TelegramApplication
     __user_ids: dict[int, set[int]]
     __lock: aiorwlock.RWLock()
-    __queue: asyncio.Queue[int]
+    __queue: asyncio.Queue[Item]
 
     def __init__(
-        self, db: db.DB, tg_app: TelegramApplication, queue: asyncio.Queue[int]
+        self,
+        db: db.DB,
+        tg_app: TelegramApplication,
+        queue: asyncio.Queue[Item],
     ):
         self.__user_ids = {}
         self.__lock = aiorwlock.RWLock()
@@ -237,27 +247,35 @@ class Watcher:
     async def start_kafka_broker(self):
         logger.info("start_kafka_broker")
         consumer = AIOKafkaConsumer(
-            "debezium.chii.bangumi.chii_subject_interests",
+            "debezium.chii.bangumi.chii_members",
             bootstrap_servers=f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
             group_id="tg-notify-bot",
         )
         await consumer.start()
         try:
-            # Consume messages
+            msg: ConsumerRecord
             async for msg in consumer:
-                print("consumed: ", msg.topic, msg.partition, msg.offset, msg.timestamp)
-                user_id = 0
-                if char := await self.is_watched_user_id(user_id):
-                    for c in char:
-                        await self.__queue.put(c)
+                with contextlib.suppress(Exception):
+                    if not msg.value:
+                        continue
+
+                    value = msgspec.json.decode(msg.value, type=debezium.MemberValue)
+                    if value.payload.op != "u":
+                        continue
+
+                    user_id = value.payload.after.uid
+                    if char := await self.is_watched_user_id(user_id):
+                        for c in char:
+                            await self.__queue.put(
+                                Item(c, f"你有 {value.payload.after.new_notify} 条新通知")
+                            )
         finally:
-            # Will leave consumer group; perform autocommit if enabled.
             await consumer.stop()
 
     async def start_queue_consumer(self):
         while True:
-            chat_id = await self.__queue.get()
-            await self.__tg.send_notification(chat_id)
+            chat_id, text = await self.__queue.get()
+            await self.__tg.send_notification(chat_id, text)
             self.__queue.task_done()
 
     def start_tasks(self):
@@ -273,7 +291,7 @@ async def start() -> None:
 
     tg_app = TelegramApplication(redis=redis_client, db_client=db)
 
-    q = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+    q: asyncio.Queue[Item] = asyncio.Queue(maxsize=config.QUEUE_SIZE)
 
     w = Watcher(db=db, tg_app=tg_app, queue=q)
     await w.read_from_db()

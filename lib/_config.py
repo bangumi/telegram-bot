@@ -20,7 +20,7 @@ class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
 
     HTTP_PORT: str | None = os.environ.get("HTTP_PORT")
 
-    QUEUE_SIZE: int = os.environ.get("QUEUE_SIZE") or 10  # type: ignore
+    QUEUE_SIZE: int = os.environ.get("QUEUE_SIZE") or 1  # type: ignore
 
     REDIS_DSN: RedisDsn = os.environ["REDIS_DSN"]
 
