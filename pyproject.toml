@@ -14,7 +14,7 @@ packages = []
 python = "^3.10"
 python-telegram-bot = { extras = ["socks", ], version = "20.4" }
 loguru = "0.7.0"
-pydantic = "2.1.1"
+pydantic = "2.3.0"
 redis = { extras = ["hiredis"], version = "4.6.0" }
 yarl = "1.9.2"
 msgspec = "0.17.0"
