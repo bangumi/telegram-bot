@@ -7,7 +7,7 @@ name = "telegram-bot"
 version = "0.1.0"
 description = ""
 authors = ["Trim21 <trim21.me@gmail.com>"]
-readme = "README.md"
+readme = "readme.md"
 packages = []
 
 [tool.poetry.dependencies]
