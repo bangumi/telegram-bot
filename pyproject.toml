@@ -13,7 +13,7 @@ packages = []
 [tool.poetry.dependencies]
 python = "^3.10"
 python-telegram-bot = { extras = ["socks", ], version = "20.4" }
-loguru = "0.7.0"
+loguru = "0.7.2"
 pydantic = "2.3.0"
 redis = { extras = ["hiredis"], version = "5.0.0" }
 yarl = "1.9.2"
