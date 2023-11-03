@@ -5,7 +5,7 @@ WORKDIR /app
 COPY . ./
 COPY pyproject.toml poetry.lock ./
 
-RUN pip install poetry &&\
+RUN pip install poetry==1.7.0 poetry-plugin-export==1.6.0 &&\
   poetry export -f requirements.txt --output requirements.txt
 
 ### final image ###
