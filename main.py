@@ -96,7 +96,9 @@ class TelegramApplication:
         """Send a message when the command /help is issued."""
         logger.trace("start command")
         if user := await self.db.is_authorized_user(chat_id=update.effective_chat.id):
-            await update.message.reply_text(f"你已经作为用户 {user.user_id} 成功进行认证")
+            await update.message.reply_text(
+                f"你已经作为用户 {user.user_id} 成功进行认证"
+            )
             return
 
         token = secrets.token_urlsafe(32)
