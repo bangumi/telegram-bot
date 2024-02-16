@@ -193,7 +193,7 @@ class TelegramApplication:
 
                     if (
                         value.payload.after.new_notify
-                        == value.payload.before.new_notify
+                        <= value.payload.before.new_notify
                     ):
                         continue
 
