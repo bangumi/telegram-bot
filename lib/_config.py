@@ -5,6 +5,7 @@ import yarl
 from pydantic import (
     BaseModel,
     KafkaDsn,
+    MySQLDsn,
     PostgresDsn,
     RedisDsn,
     field_validator,
@@ -26,22 +27,13 @@ class Settings(BaseModel, validate_default=True, arbitrary_types_allowed=True):
     REDIS_DSN: RedisDsn = os.environ["REDIS_DSN"]
 
     PG_DSN: PostgresDsn = os.environ["PG_DSN"]
+    MYSQL_DSN: MySQLDsn = os.environ["MYSQL_DSN"]
 
     KAFKA_BROKER: KafkaDsn = os.environ["KAFKA_DSN"]
 
     EXTERNAL_HTTP_ADDRESS: yarl.URL = os.environ.get(
         "EXTERNAL_HTTP_ADDRESS", "http://127.0.0.1:4098"
     )
-
-    @property
-    def MYSQL_SYNC_DSN(self) -> str:
-        return "mysql+aiomysql://{}:{}@{}:{}/{}".format(
-            self.MYSQL_USER,
-            self.MYSQL_PASS,
-            self.MYSQL_HOST,
-            self.MYSQL_PORT,
-            self.MYSQL_DB,
-        )
 
     @field_validator("EXTERNAL_HTTP_ADDRESS", mode="plain")
     @classmethod
