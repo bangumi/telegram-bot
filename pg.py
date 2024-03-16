@@ -12,15 +12,15 @@ class Table(pydantic.BaseModel):
     disabled: bool
 
 
-async def create_db():
-    db = DB(
+async def create_pg_client():
+    db = PG(
         pool=await asyncpg.create_pool(dsn=str(config.PG_DSN)),
     )
     await db.init()
     return db
 
 
-class DB:
+class PG:
     __pool: asyncpg.Pool
 
     def __init__(self, pool: asyncpg.Pool):

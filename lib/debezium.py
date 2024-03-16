@@ -16,9 +16,18 @@ class ChiiNotify(msgspec.Struct):
     nt_from_uid: int
     nt_status: int
     nt_type: int
-    nt_mid: int
-    nt_related_id: int
+    nt_mid: int  # ID of notify_field
+    nt_related_id: int  # id of post
     timestamp: int = msgspec.field(name="nt_dateline")
+
+
+class ChiiNotifyField(msgspec.Struct):
+    """table of chii_notify_field as json"""
+
+    ntf_id: int
+    ntf_rid: int
+    ntf_title: str
+    ntf_hash: int
 
 
 class NotifyValuePayload(msgspec.Struct):
