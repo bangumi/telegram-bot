@@ -1,16 +1,17 @@
 import asyncio
+import dataclasses
 
 import asyncmy
-import pydantic
 
 from lib import config
 from lib.debezium import ChiiNotifyField
 
 
-class Table(pydantic.BaseModel):
-    chat_id: int
-    user_id: int
-    disabled: bool
+@dataclasses.dataclass
+class User:
+    uid: int
+    username: str
+    nickname: str
 
 
 async def create_mysql_client():
@@ -49,20 +50,15 @@ class MySql:
                 ntf_title=r[3],
             )
 
-    async def get_user(self, uid) -> ChiiNotifyField:
+    async def get_user(self, uid) -> User:
         conn: asyncmy.Connection
         async with self.__pool.acquire() as conn, conn.cursor() as cur:
             await cur.execute(
                 "SELECT uid, username, nickname from chii_members where uid = %s",
                 uid,
             )
-            r = await cur.fetchone()
-            return ChiiNotifyField(
-                ntf_id=r[0],
-                ntf_hash=r[1],
-                ntf_rid=r[2],
-                ntf_title=r[3],
-            )
+            uid, username, nickname = await cur.fetchone()
+            return User(uid=uid, username=username, nickname=nickname)
 
 
 async def test():
