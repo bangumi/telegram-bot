@@ -231,6 +231,29 @@ class TelegramApplication:
             for c in char:
                 await self.__queue.put(Item(c, msg, parse_mode=ParseMode.MARKDOWN_V2))
 
+    @staticmethod
+    def escape_nickname(nickname: str) -> str:
+        return (
+            nickname.replace("_", "\\_")
+            .replace("*", "\\*")
+            .replace("[", "\\[")
+            .replace("]", "\\]")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+            .replace("~", "\\~")
+            .replace("`", "\\`")
+            .replace(">", "\\>")
+            .replace("#", "\\#")
+            .replace("+", "\\+")
+            .replace("-", "\\-")
+            .replace("=", "\\=")
+            .replace("|", "\\|")
+            .replace("{", "\\{")
+            .replace("}", "\\}")
+            .replace(".", "\\.")
+            .replace("!", "\\!")
+        )
+
     async def handle_member(self, msg: ConsumerRecord):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
             if not msg.value:
