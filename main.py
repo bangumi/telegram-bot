@@ -23,6 +23,8 @@ from loguru import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, RedirectResponse, Response
+from telegram._utils.defaultvalue import DEFAULT_NONE
+from telegram.constants import ParseMode
 
 import mysql
 import pg
@@ -39,6 +41,7 @@ logging.getLogger("httpx").setLevel(logging.WARN)
 class Item(NamedTuple):
     chat_id: int
     text: str
+    parse_mode: str = DEFAULT_NONE
 
 
 class RedisOAuthState(msgspec.Struct):
@@ -165,8 +168,8 @@ class TelegramApplication:
         print(context.chat_data)
         print(update_str)
 
-    async def send_notification(self, chat_id: int, text: str):
-        await self.bot.send_message(chat_id=chat_id, text=text)
+    async def send_notification(self, chat_id: int, text: str, parse_mode=DEFAULT_NONE):
+        await self.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
 
     async def is_watched_user_id(self, user_id: int) -> set[int] | None:
         async with self.__lock.reader:
@@ -222,9 +225,10 @@ class TelegramApplication:
             field = await self.mysql.get_notify_field(notify.nt_mid)
             user = await self.mysql.get_user(notify.nt_from_uid)
 
-            msg = f"`{user.nickname}` {cfg.prefix} '{field.ntf_title}' {cfg.suffix}\n\n{cfg.url}/{field.ntf_rid}{cfg.anchor}{notify.nt_related_id}"
+            url = f"{cfg.url}/{field.ntf_rid}{cfg.anchor}{notify.nt_related_id}"
+            msg = f"`{user.nickname}` {cfg.prefix} [`{field.ntf_title}`]({url}) {cfg.suffix}"
             for c in char:
-                await self.__queue.put(Item(c, msg))
+                await self.__queue.put(Item(c, msg, parse_mode=ParseMode.MARKDOWN_V2))
 
     async def handle_member(self, msg: ConsumerRecord):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
@@ -255,8 +259,8 @@ class TelegramApplication:
 
     async def start_queue_consumer(self):
         while True:
-            chat_id, text = await self.__queue.get()
-            await self.send_notification(chat_id, text)
+            chat_id, text, parse_mode = await self.__queue.get()
+            await self.send_notification(chat_id, text, parse_mode)
             self.__queue.task_done()
 
     def start_tasks(self):
