@@ -180,7 +180,7 @@ class TelegramApplication:
     async def start_kafka_broker(self):
         logger.info("start_kafka_broker")
         consumer = AIOKafkaConsumer(
-            "debezium.chii.bangumi.chii_members",
+            # "debezium.chii.bangumi.chii_members",
             "debezium.chii.bangumi.chii_notify",
             bootstrap_servers=f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
             group_id="tg-notify-bot",
