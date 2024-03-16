@@ -37,7 +37,9 @@ extend-exclude = "api/v1"
 
 [tool.ruff]
 extend-exclude = [".venv", "api"]
+target-version = "py310"
 
+[tool.ruff.lint]
 select = [
     "B",
     "C",
@@ -103,5 +105,3 @@ ignore = [
 ]
 
 unfixable = ['F401', 'F841']
-
-target-version = "py310"
