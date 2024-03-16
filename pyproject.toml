@@ -14,12 +14,12 @@ packages = []
 python = "^3.10"
 python-telegram-bot = { extras = ["socks", ], version = "20.7" }
 loguru = "0.7.2"
-pydantic = "2.6.1"
-redis = { extras = ["hiredis"], version = "5.0.1" }
+pydantic = "2.6.3"
+redis = { extras = ["hiredis"], version = "5.0.2" }
 yarl = "1.9.4"
 msgspec = "0.18.6"
 uvicorn = "0.27.0.post1"
-starlette = "0.37.0"
+starlette = "0.37.2"
 aiokafka = "0.10.0"
 aiorwlock = "1.4.0"
 asyncmy = "^0.2.9"
