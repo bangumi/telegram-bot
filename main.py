@@ -188,6 +188,7 @@ class TelegramApplication:
             "debezium.chii.bangumi.chii_notify",
             bootstrap_servers=f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
             group_id="tg-notify-bot",
+            enable_auto_commit=False,
         )
         await consumer.start()
         try:
@@ -198,6 +199,7 @@ class TelegramApplication:
                     #     await self.handle_member(msg)
                     case "debezium.chii.bangumi.chii_notify":
                         await self.handle_notify_change(msg)
+                await consumer.commit()
 
         finally:
             await consumer.stop()
