@@ -226,7 +226,7 @@ class TelegramApplication:
             user = await self.mysql.get_user(notify.nt_from_uid)
 
             url = f"{cfg.url}/{field.ntf_rid}{cfg.anchor}{notify.nt_related_id}"
-            msg = f"`{user.nickname}` {cfg.prefix} [`{field.ntf_title}`]({url}) {cfg.suffix}"
+            msg = f"`{user.nickname}` {cfg.prefix} [{field.ntf_title}]({url}) {cfg.suffix}"
             for c in char:
                 await self.__queue.put(Item(c, msg, parse_mode=ParseMode.MARKDOWN_V2))
 
