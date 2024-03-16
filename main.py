@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import http
 import logging
 import secrets
@@ -226,32 +227,9 @@ class TelegramApplication:
             user = await self.mysql.get_user(notify.nt_from_uid)
 
             url = f"{cfg.url}/{field.ntf_rid}{cfg.anchor}{notify.nt_related_id}"
-            msg = f"`{self.escape_nickname(user.nickname)}` {cfg.prefix} `{field.ntf_title}` {cfg.suffix}\n\n{url}"
+            msg = f"<code>{html.escape(user.nickname)}</code>` {cfg.prefix} <strong>{field.ntf_title}</strong> {cfg.suffix}\n\n{url}"
             for c in char:
-                await self.__queue.put(Item(c, msg, parse_mode=ParseMode.MARKDOWN_V2))
-
-    @staticmethod
-    def escape_nickname(nickname: str) -> str:
-        return (
-            nickname.replace("_", "\\_")
-            .replace("*", "\\*")
-            .replace("[", "\\[")
-            .replace("]", "\\]")
-            .replace("(", "\\(")
-            .replace(")", "\\)")
-            .replace("~", "\\~")
-            .replace("`", "\\`")
-            .replace(">", "\\>")
-            .replace("#", "\\#")
-            .replace("+", "\\+")
-            .replace("-", "\\-")
-            .replace("=", "\\=")
-            .replace("|", "\\|")
-            .replace("{", "\\{")
-            .replace("}", "\\}")
-            .replace(".", "\\.")
-            .replace("!", "\\!")
-        )
+                await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
     async def handle_member(self, msg: ConsumerRecord):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
