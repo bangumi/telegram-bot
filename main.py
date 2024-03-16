@@ -226,8 +226,22 @@ class TelegramApplication:
             field = await self.mysql.get_notify_field(notify.nt_mid)
             user = await self.mysql.get_user(notify.nt_from_uid)
 
-            url = f"{cfg.url}/{field.ntf_rid}{cfg.anchor}{notify.nt_related_id}"
-            msg = f"<code>{user.nickname}</code> {cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}\n\n{url}"
+            url = f"{cfg.url.rstrip('/')}/{field.ntf_rid}"
+
+            if notify.nt_related_id:
+                url += f"{cfg.anchor}{notify.nt_related_id}"
+
+            msg = f"<code>{user.nickname}</code>"
+
+            if cfg.suffix:
+                msg += (
+                    f"{cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}"
+                )
+            else:
+                msg += f"{cfg.prefix}"
+
+            msg += f"\n\n{url}"
+
             for c in char:
                 await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
