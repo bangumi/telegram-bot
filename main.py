@@ -237,7 +237,7 @@ class TelegramApplication:
 
             if cfg.suffix:
                 msg += (
-                    f"{cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}"
+                    f" {cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}"
                 )
             else:
                 msg += f"{cfg.prefix}"
