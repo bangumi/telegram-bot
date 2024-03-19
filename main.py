@@ -67,6 +67,7 @@ class TelegramApplication:
     __user_ids: dict[int, set[int]]
     __lock: aiorwlock.RWLock()
     __queue: asyncio.Queue[Item]
+    __background_tasks: set
 
     def __init__(
         self, redis_client: redis.Redis, pg_client: pg.PG, mysql_client=mysql.MySql
@@ -95,6 +96,7 @@ class TelegramApplication:
         self.mysql = mysql_client
         self.__lock = aiorwlock.RWLock()
         self.__queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+        self.__background_tasks = set()
 
     async def init(self):
         await self.read_from_db()
@@ -282,8 +284,10 @@ class TelegramApplication:
 
     def start_tasks(self):
         loop = asyncio.get_event_loop()
-        loop.create_task(self.start_queue_consumer())
-        loop.create_task(self.start_kafka_broker())
+        task = loop.create_task(self.start_queue_consumer())
+        self.__background_tasks.add(task)
+        task = loop.create_task(self.start_kafka_broker())
+        self.__background_tasks.add(task)
 
 
 class OAuthHTTPServer:
