@@ -285,8 +285,14 @@ class TelegramApplication:
     def start_tasks(self):
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.start_queue_consumer())
+
+        def _exit(*args, **kwargs):
+            sys.exit(1)
+
+        task.add_done_callback(_exit)
         self.__background_tasks.add(task)
         task = loop.create_task(self.start_kafka_broker())
+        task.add_done_callback(_exit)
         self.__background_tasks.add(task)
 
 
