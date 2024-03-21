@@ -6,6 +6,7 @@ import http
 import logging
 import secrets
 import sys
+import time
 import traceback
 from typing import NamedTuple
 
@@ -218,6 +219,10 @@ class TelegramApplication:
                 return
 
             notify = value.payload.after
+
+            if notify.timestamp < time.time() - 60 * 2:
+                # skip notification older than 2 min
+                return
 
             char = await self.is_watched_user_id(notify.nt_uid)
             if not char:
