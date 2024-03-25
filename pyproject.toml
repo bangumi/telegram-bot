@@ -8,7 +8,7 @@ version = "0.1.0"
 description = ""
 authors = ["Trim21 <trim21.me@gmail.com>"]
 readme = "readme.md"
-packages = []
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
