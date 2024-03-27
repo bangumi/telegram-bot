@@ -23,6 +23,7 @@ async def create_mysql_client():
             password=config.MYSQL_DSN.password,
             db=config.MYSQL_DSN.path.lstrip("/"),
             autocommit=False,
+            pool_recycle=3600 * 7,
         ),
     )
     return db
