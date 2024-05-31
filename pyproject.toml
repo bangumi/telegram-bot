@@ -27,7 +27,7 @@ asyncpg = "0.29.0"
 
 [tool.poetry.group.dev.dependencies]
 watchfiles = "0.21.0"
-pre-commit = "3.7.0"
+pre-commit = "3.7.1"
 
 [tool.black]
 target_version = ['py310']
