@@ -305,7 +305,10 @@ class TelegramApplication:
             if char := await self.is_watched_user_id(user_id):
                 for c in char:
                     await self.__queue.put(
-                        Item(c, "你有新私信\n\nhttps://bgm.tv/pm/inbox.chii")
+                        Item(
+                            c,
+                            f"你有 {after.newpm} 条新私信\n\nhttps://bgm.tv/pm/inbox.chii",
+                        )
                     )
 
     async def start_queue_consumer(self):
