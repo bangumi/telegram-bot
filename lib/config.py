@@ -9,7 +9,7 @@ T = TypeVar("T")
 
 
 def __convert(v: Any, t: type[T]) -> T:
-    msgspec.convert(v, type=t, strict=False)
+    return msgspec.convert(v, type=t, strict=False)
 
 
 debug: bool = __convert(os.environ.get("DEBUG", sys.platform == "win32"), t=bool)
