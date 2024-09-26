@@ -8,7 +8,7 @@ import secrets
 import sys
 import time
 import traceback
-from threading import Thread
+from concurrent.futures.thread import ThreadPoolExecutor
 from typing import NamedTuple
 
 import aiorwlock
@@ -22,7 +22,7 @@ import telegram as tg
 import telegram.ext
 import uvicorn
 import yarl
-from loguru import logger
+from sslog import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, RedirectResponse, Response
@@ -36,9 +36,7 @@ from lib import config, debezium
 from mysql import MySql, create_mysql_client
 from pg import PG, create_pg_client
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+logging.basicConfig(level=logging.INFO, handlers=[sslog.InterceptHandler()])
 logging.getLogger("httpx").setLevel(logging.WARN)
 
 
@@ -194,123 +192,131 @@ class TelegramApplication:
 
     @sslog.logger.catch
     def __watch_kafka_messages(self, loop: asyncio.AbstractEventLoop) -> None:
-        logger.info("start watching kafka message")
-        consumer = KafkaConsumer(
-            "debezium.chii.bangumi.chii_members",
-            "debezium.chii.bangumi.chii_notify",
-        )
-        for msg in consumer:
-            match msg.topic:
-                case "debezium.chii.bangumi.chii_members":
-                    asyncio.run_coroutine_threadsafe(
-                        self.__pm_queue.put(msg), loop
-                    ).result()
-                case "debezium.chii.bangumi.chii_notify":
-                    asyncio.run_coroutine_threadsafe(
-                        self.__notify_queue.put(msg), loop
-                    ).result()
+        try:
+            logger.info("start watching kafka message")
+            consumer = KafkaConsumer(
+                "debezium.chii.bangumi.chii_members",
+                "debezium.chii.bangumi.chii_notify",
+            )
+            for msg in consumer:
+                match msg.topic:
+                    case "debezium.chii.bangumi.chii_members":
+                        asyncio.run_coroutine_threadsafe(
+                            self.__pm_queue.put(msg), loop
+                        ).result()
+                    case "debezium.chii.bangumi.chii_notify":
+                        asyncio.run_coroutine_threadsafe(
+                            self.__notify_queue.put(msg), loop
+                        ).result()
+        except Exception:
+            logger.exception("failed to watch kafka message, exit process")
+            sys.exit(1)
 
     async def __handle_new_notify(self) -> None:
         while True:
             msg = await self.__notify_queue.get()
-            await self.handle_notify_change(msg)
+            try:
+                await self.handle_notify_change(msg)
+            except Exception:
+                logger.exception("failed to handle notify change event")
 
     async def __handle_new_pm(self) -> None:
         while True:
             msg = await self.__pm_queue.get()
-            await self.handle_member(msg)
+            try:
+                await self.handle_member(msg)
+            except Exception:
+                logger.exception("failed to handle member change event")
 
     def watch_kafka_message(self):
         loop = asyncio.get_running_loop()
         self.__background_tasks.add(loop.create_task(self.__handle_new_notify()))
         self.__background_tasks.add(loop.create_task(self.__handle_new_pm()))
         self.__background_tasks.add(
-            Thread(target=self.__watch_kafka_messages, args=(loop,)).start()
+            loop.run_in_executor(
+                ThreadPoolExecutor(), self.__watch_kafka_messages, loop
+            )
         )
 
     notify_decoder = msgspec.json.Decoder(debezium.NotifyValue)
 
     async def handle_notify_change(self, msg: Msg):
-        with logger.catch(message="unexpected exception when parsing kafka messages"):
-            if not msg.value:
-                return
+        if not msg.value:
+            return
 
-            value: debezium.NotifyValue = self.notify_decoder.decode(msg.value)
-            if value.op != "c":
-                return
+        value: debezium.NotifyValue = self.notify_decoder.decode(msg.value)
+        if value.op != "c":
+            return
 
-            notify = value.after
+        notify = value.after
 
-            if notify.timestamp < time.time() - 60 * 2:
-                # skip notification older than 2 min
-                return
+        if notify.timestamp < time.time() - 60 * 2:
+            # skip notification older than 2 min
+            return
 
-            char = await self.is_watched_user_id(notify.nt_uid)
-            if not char:
-                return
+        char = await self.is_watched_user_id(notify.nt_uid)
+        if not char:
+            return
 
-            cfg = notify_types.get(notify.nt_type)
-            if not cfg:
-                return
+        cfg = notify_types.get(notify.nt_type)
+        if not cfg:
+            return
 
-            field = await self.mysql.get_notify_field(notify.nt_mid)
-            user = await self.mysql.get_user(notify.nt_from_uid)
+        field = await self.mysql.get_notify_field(notify.nt_mid)
+        user = await self.mysql.get_user(notify.nt_from_uid)
 
-            url = f"{cfg.url.rstrip('/')}/{field.ntf_rid}"
+        url = f"{cfg.url.rstrip('/')}/{field.ntf_rid}"
 
-            if notify.nt_related_id:
-                url += f"{cfg.anchor}{notify.nt_related_id}"
+        if notify.nt_related_id:
+            url += f"{cfg.anchor}{notify.nt_related_id}"
 
-            msg = f"<code>{user.nickname}</code>"
+        msg = f"<code>{user.nickname}</code>"
 
-            if cfg.suffix:
-                msg += (
-                    f" {cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}"
-                )
-            else:
-                msg += f"{cfg.prefix}"
+        if cfg.suffix:
+            msg += f" {cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}"
+        else:
+            msg += f"{cfg.prefix}"
 
-            msg += f"\n\n{url}"
+        msg += f"\n\n{url}"
 
-            for c in char:
-                await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
+        for c in char:
+            await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
     member_decoder = msgspec.json.Decoder(debezium.MemberValue)
 
     async def handle_member(self, msg: Msg):
-        with logger.catch(message="unexpected exception when parsing kafka messages"):
-            if not msg.value:
-                return
+        if not msg.value:
+            return
 
-            try:
-                value: debezium.MemberValue = self.member_decoder.decode(msg.value)
-            except msgspec.ValidationError:
-                return
+        try:
+            value: debezium.MemberValue = self.member_decoder.decode(msg.value)
+        except msgspec.ValidationError:
+            return
 
-            if value.op != "u":
-                return
+        if value.op != "u":
+            return
 
-            after = value.after
-            before = value.before
+        after = value.after
+        before = value.before
 
-            if after is None:
-                return
-            if before is None:
-                return
+        if after is None:
+            return
+        if before is None:
+            return
 
-            if after.newpm <= before.newpm:
-                return
+        if after.newpm <= before.newpm:
+            return
 
-            user_id = after.uid
-            if char := await self.is_watched_user_id(user_id):
-                for c in char:
-                    await self.__queue.put(
-                        Item(
-                            c,
-                            "你有新私信\n\nhttps://bgm.tv/pm/inbox.chii",
-                            parse_mode=ParseMode.HTML,
-                        )
+        user_id = after.uid
+        if char := await self.is_watched_user_id(user_id):
+            for c in char:
+                await self.__queue.put(
+                    Item(
+                        c,
+                        "你有新私信\n\nhttps://bgm.tv/pm/inbox.chii",
+                        parse_mode=ParseMode.HTML,
                     )
+                )
 
     async def start_queue_consumer(self):
         while True:
