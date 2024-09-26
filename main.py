@@ -287,6 +287,10 @@ class TelegramApplication:
             except msgspec.ValidationError:
                 return
 
+            # ignore events before 2024-09-26T01:06:26+00:00
+            if value.source.ts_ms < 1727312791000:
+                return
+
             if value.op != "u":
                 return
 

@@ -1,4 +1,13 @@
+from datetime import datetime
+
 import msgspec
+
+
+class Source(msgspec.Struct):
+    ts_ms: int
+
+    def timestamp(self) -> datetime:
+        return datetime.fromtimestamp(self.ts_ms / 1000).astimezone()
 
 
 class ChiiNotify(msgspec.Struct):
@@ -39,3 +48,4 @@ class MemberValue(msgspec.Struct):
     before: ChiiMember | None
     after: ChiiMember | None
     op: str  # 'r', 'c', 'd' ...
+    source: Source
