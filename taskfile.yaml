@@ -9,7 +9,11 @@ tasks:
       - task --list-all
 
   dev:
-    cmd: poetry run watchfiles main.main
+    sources:
+      - main.py
+    generates:
+      - a-file-not-exists
+    cmd: python main.py
 
   lint:
     - poetry run mypy .

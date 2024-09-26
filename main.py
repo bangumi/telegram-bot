@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import functools
 import html
 import http
 import logging
+import os
 import secrets
 import sys
 import time
-import traceback
-from concurrent.futures.thread import ThreadPoolExecutor
-from typing import NamedTuple
+from threading import Thread
+from typing import Any, NamedTuple
 
 import aiorwlock
 import httpx
@@ -81,9 +83,7 @@ class TelegramApplication:
 
         if sys.platform == "win32":
             proxy_url = "http://192.168.1.3:7890"
-            application = application.proxy_url(proxy_url).get_updates_proxy_url(
-                proxy_url
-            )
+            application = application.proxy(proxy_url).get_updates_proxy(proxy_url)
 
         application = application.token(config.TELEGRAM_BOT_TOKEN).build()
 
@@ -105,9 +105,13 @@ class TelegramApplication:
         self.__pm_queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
         self.__background_tasks = set()
 
-    async def init(self):
+    async def start(self):
         await self.read_from_db()
         self.start_tasks()
+        await self.app.initialize()
+        await self.app.updater.start_polling(allowed_updates=tg.Update.ALL_TYPES)
+        logger.info("telegram bot start")
+        await self.app.start()
 
     @logger.catch
     async def start_command(
@@ -161,22 +165,15 @@ class TelegramApplication:
     ) -> None:
         logger.trace("debug command")
         await update.message.reply_text(f"chat_id: {update.effective_chat.id}")
+        await self.bot.send_message(
+            chat_id=update.effective_chat.id, text="debug command"
+        )
 
     @logger.catch
     async def error_handler(
-        self, update: object, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, _update: object, context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
-        logger.error("Exception while handling an update:", exc_info=context.error)
-        tb_list = traceback.format_exception(
-            None, context.error, context.error.__traceback__
-        )
-        tb_string = "".join(tb_list)
-
-        update_str = update.to_dict() if isinstance(update, tg.Update) else str(update)
-        print(tb_string)
-        print(context.user_data)
-        print(context.chat_data)
-        print(update_str)
+        logger.exception("Exception while handling an update", error=context.error)
 
     async def send_notification(self, chat_id: int, text: str, parse_mode=DEFAULT_NONE):
         await self.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
@@ -210,7 +207,7 @@ class TelegramApplication:
                         ).result()
         except Exception:
             logger.exception("failed to watch kafka message, exit process")
-            sys.exit(1)
+            os._exit(1)
 
     async def __handle_new_notify(self) -> None:
         while True:
@@ -232,11 +229,11 @@ class TelegramApplication:
         loop = asyncio.get_running_loop()
         self.__background_tasks.add(loop.create_task(self.__handle_new_notify()))
         self.__background_tasks.add(loop.create_task(self.__handle_new_pm()))
-        self.__background_tasks.add(
-            loop.run_in_executor(
-                ThreadPoolExecutor(), self.__watch_kafka_messages, loop
-            )
+        t = Thread(
+            target=functools.partial(self.__watch_kafka_messages, loop), daemon=True
         )
+        self.__background_tasks.add(t)
+        t.start()
 
     notify_decoder = msgspec.json.Decoder(debezium.NotifyValue)
 
@@ -328,11 +325,6 @@ class TelegramApplication:
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.start_queue_consumer())
         self.watch_kafka_message()
-
-        def _exit(*_args, **_kwargs):
-            sys.exit(1)
-
-        task.add_done_callback(_exit)
         self.__background_tasks.add(task)
 
 
@@ -349,6 +341,22 @@ class OAuthHTTPServer:
         self.http_client = httpx.AsyncClient()
         self.db = db
         self.tg = bot
+
+    async def start(self):
+        port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app=self.app,
+                host="0.0.0.0",
+                lifespan="on",
+                workers=1,
+                port=port,
+                log_level=logging.WARN,
+                access_log=False,
+            )
+        )
+        logger.info("http server listen on port={}", port)
+        await server.serve()
 
     async def index_path(self, _request: Request) -> Response:
         return Response("index page")
@@ -414,23 +422,8 @@ class OAuthHTTPServer:
 
         return PlainTextResponse("你已经成功认证，请关闭页面返回 telegram")
 
-    async def start(self):
-        logger.info("start http server")
-        port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
-        server = uvicorn.Server(
-            uvicorn.Config(
-                app=self.app,
-                host="0.0.0.0",
-                port=port,
-                log_level=logging.WARN,
-                access_log=False,
-            )
-        )
-        logger.info("http server listen on port={}", port)
-        await server.serve()
 
-
-async def start() -> None:
+async def start(loop) -> Any:
     redis_client = redis.from_url(str(config.REDIS_DSN))
 
     pg_client = await create_pg_client()
@@ -440,21 +433,22 @@ async def start() -> None:
         pg_client=pg_client,
         mysql_client=await create_mysql_client(),
     )
-    await tg_app.init()
 
     http_server = OAuthHTTPServer(r=redis_client, db=pg_client, bot=tg_app)
-    async with tg_app.app:
-        await tg_app.app.initialize()
-        await tg_app.app.start()
-        await tg_app.app.updater.start_polling(allowed_updates=tg.Update.ALL_TYPES)
 
-        logger.info("telegram bot start")
+    tasks = set()
+    tasks.add(loop.create_task(tg_app.start(), name="telegram bot"))
+    tasks.add(loop.create_task(http_server.start(), name="exc"))
 
-        await http_server.start()
+    with contextlib.suppress(Exception):
+        await asyncio.gather(*tasks)
+
+    await loop.shutdown_default_executor()
 
 
 def main() -> None:
-    asyncio.get_event_loop().run_until_complete(start())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start(loop))
 
 
 if __name__ == "__main__":
