@@ -287,10 +287,6 @@ class TelegramApplication:
             except msgspec.ValidationError:
                 return
 
-            # ignore events before 2024-09-26T01:06:26+00:00
-            if value.source.ts_ms < 1727312791000:
-                return
-
             if value.op != "u":
                 return
 
@@ -308,7 +304,9 @@ class TelegramApplication:
             user_id = after.uid
             if char := await self.is_watched_user_id(user_id):
                 for c in char:
-                    await self.__queue.put(Item(c, "你有新私信"))
+                    await self.__queue.put(
+                        Item(c, "你有新私信\n\nhttps://bgm.tv/pm/inbox.chii")
+                    )
 
     async def start_queue_consumer(self):
         while True:
