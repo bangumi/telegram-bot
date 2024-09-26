@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import dataclasses
 from collections import defaultdict
 
 import asyncpg
+from asyncpg import Record
 
 from lib import config
 
@@ -13,19 +16,21 @@ class Table:
     disabled: bool
 
 
-async def create_pg_client():
-    db = PG(pool=await asyncpg.create_pool(dsn=str(config.PG_DSN)))
+async def create_pg_client() -> PG:
+    pool = asyncpg.create_pool(dsn=str(config.PG_DSN))
+    await pool
+    db = PG(pool)
     await db.init()
     return db
 
 
 class PG:
-    __pool: asyncpg.Pool
+    __pool: asyncpg.Pool[Record]
 
-    def __init__(self, pool: asyncpg.Pool):
+    def __init__(self, pool: asyncpg.Pool[Record]):
         self.__pool = pool
 
-    async def init(self):
+    async def init(self) -> None:
         await self.__pool.execute(
             """
             CREATE TABLE IF NOT EXISTS telegram_notify_chat (
@@ -37,14 +42,14 @@ class PG:
             """
         )
 
-    async def insert_chat_bangumi_map(self, *, chat_id: int, user_id: int):
+    async def insert_chat_bangumi_map(self, *, chat_id: int, user_id: int) -> None:
         await self.__pool.execute(
             "INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)",
             chat_id,
             user_id,
         )
 
-    async def logout(self, *, chat_id: int):
+    async def logout(self, *, chat_id: int) -> None:
         await self.__pool.execute(
             "DELETE from telegram_notify_chat where chat_id=$1",
             chat_id,
@@ -56,7 +61,6 @@ class PG:
             chat_id,
         )
         if rr:
-            print(rr)
             return Table(chat_id=rr[0], user_id=rr[1], disabled=rr[2])
         return None
 

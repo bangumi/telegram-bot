@@ -1,4 +1,5 @@
-import asyncio
+from __future__ import annotations
+
 import dataclasses
 
 import asyncmy
@@ -14,7 +15,7 @@ class User:
     nickname: str
 
 
-async def create_mysql_client():
+async def create_mysql_client() -> MySql:
     db = MySql(
         pool=await asyncmy.create_pool(
             host=config.MYSQL_DSN.host,
@@ -36,7 +37,7 @@ class MySql:
         self.__pool = pool
         self.pool = pool
 
-    async def get_notify_field(self, ntf_id) -> ChiiNotifyField:
+    async def get_notify_field(self, ntf_id: int) -> ChiiNotifyField:
         conn: asyncmy.Connection
         async with self.__pool.acquire() as conn, conn.cursor() as cur:
             await cur.execute(
@@ -51,7 +52,7 @@ class MySql:
                 ntf_title=r[3],
             )
 
-    async def get_user(self, uid) -> User:
+    async def get_user(self, uid: int) -> User:
         conn: asyncmy.Connection
         async with self.__pool.acquire() as conn, conn.cursor() as cur:
             await cur.execute(
@@ -60,16 +61,3 @@ class MySql:
             )
             uid, username, nickname = await cur.fetchone()
             return User(uid=uid, username=username, nickname=nickname)
-
-
-async def test():
-    pool = await create_mysql_client()
-
-    r = await pool.get_notify_field(5)
-    print(r)
-    pool.pool.close()
-    await pool.pool.wait_closed()
-
-
-def main():
-    asyncio.run(test())

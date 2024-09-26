@@ -19,7 +19,10 @@ TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
 BANGUMI_APP_ID: str = os.environ["BANGUMI_APP_ID"]
 BANGUMI_APP_SECRET: str = os.environ["BANGUMI_APP_SECRET"]
 
-HTTP_PORT = __convert(os.environ.get("HTTP_PORT"), t=Union[int, None])
+HTTP_PORT: int | None = __convert(
+    os.environ.get("HTTP_PORT"),
+    t=Union[int, None],  # type: ignore[arg-type]
+)
 
 QUEUE_SIZE = __convert(os.environ.get("QUEUE_SIZE") or 1, t=int)
 

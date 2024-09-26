@@ -28,7 +28,7 @@ from sslog import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, RedirectResponse, Response
-from telegram._utils.defaultvalue import DEFAULT_NONE
+from telegram._utils.defaultvalue import DEFAULT_NONE, DefaultValue
 from telegram.constants import ParseMode
 
 import pg
@@ -45,7 +45,7 @@ logging.getLogger("httpx").setLevel(logging.WARN)
 class Item(NamedTuple):
     chat_id: int
     text: str
-    parse_mode: str = DEFAULT_NONE
+    parse_mode: str | DefaultValue[None] = DEFAULT_NONE
 
 
 class RedisOAuthState(msgspec.Struct):
@@ -56,21 +56,21 @@ class BangumiOAuthResponse(msgspec.Struct):
     user_id: int
 
 
-def state_to_redis_key(state: str):
+def state_to_redis_key(state: str) -> str:
     return f"tg-bot-oauth:{state}"
 
 
 class TelegramApplication:
-    app: tg.ext.Application
+    app: tg.ext.Application[Any, Any, Any, Any, Any, Any]
     bot: tg.Bot
 
     mysql: MySql
 
     __tg: TelegramApplication
     __user_ids: dict[int, set[int]]
-    __lock: aiorwlock.RWLock()
+    __lock: aiorwlock.RWLock
     __queue: asyncio.Queue[Item]
-    __background_tasks: set
+    __background_tasks: set[Any]
 
     # queue for kafka message
     __notify_queue: asyncio.Queue[Msg]
@@ -79,13 +79,13 @@ class TelegramApplication:
     def __init__(
         self, redis_client: redis.Redis, pg_client: pg.PG, mysql_client: MySql
     ):
-        application = tg.ext.Application.builder()
+        builder = tg.ext.Application.builder()
 
         if sys.platform == "win32":
             proxy_url = "http://192.168.1.3:7890"
-            application = application.proxy(proxy_url).get_updates_proxy(proxy_url)
+            builder = builder.proxy(proxy_url).get_updates_proxy(proxy_url)
 
-        application = application.token(config.TELEGRAM_BOT_TOKEN).build()
+        application = builder.token(config.TELEGRAM_BOT_TOKEN).build()
 
         # on different commands - answer in Telegram
         application.add_handler(tg.ext.CommandHandler("start", self.start_command))
@@ -94,6 +94,7 @@ class TelegramApplication:
         application.add_handler(tg.ext.CommandHandler("debug", self.debug_command))
 
         application.add_error_handler(self.error_handler)
+
         self.app = application
         self.bot = application.bot
         self.redis = redis_client
@@ -105,11 +106,15 @@ class TelegramApplication:
         self.__pm_queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
         self.__background_tasks = set()
 
-    async def start(self):
+    async def start(self) -> None:
         await self.read_from_db()
         self.start_tasks()
         await self.app.initialize()
-        await self.app.updater.start_polling(allowed_updates=tg.Update.ALL_TYPES)
+        updater = self.app.updater
+        if updater is None:
+            logger.fatal("app.updater is None")
+            return
+        await updater.start_polling(allowed_updates=tg.Update.ALL_TYPES)
         logger.info("telegram bot start")
         await self.app.start()
 
@@ -119,6 +124,9 @@ class TelegramApplication:
     ) -> None:
         """Send a message when the command /help is issued."""
         logger.trace("start command")
+        if update.message is None or update.effective_chat is None:
+            return
+
         if user := await self.pg.is_authorized_user(chat_id=update.effective_chat.id):
             await update.message.reply_text(
                 f"你已经作为用户 {user.user_id} 成功进行认证"
@@ -148,13 +156,20 @@ class TelegramApplication:
         self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("help command")
+        if update.message is None:
+            return
         await update.message.reply_text("use command `/start`")
 
     @logger.catch
     async def logout_command(
         self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
-    ):
+    ) -> None:
         logger.trace("logout command")
+        if update.effective_chat is None:
+            return
+        if update.message is None:
+            return
+
         await self.pg.logout(chat_id=update.effective_chat.id)
         await self.read_from_db()
         await update.message.reply_text("成功登出")
@@ -164,6 +179,12 @@ class TelegramApplication:
         self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("debug command")
+
+        if update.effective_chat is None:
+            return
+        if update.message is None:
+            return
+
         await update.message.reply_text(f"chat_id: {update.effective_chat.id}")
         await self.bot.send_message(
             chat_id=update.effective_chat.id, text="debug command"
@@ -175,14 +196,19 @@ class TelegramApplication:
     ) -> None:
         logger.exception("Exception while handling an update", error=context.error)
 
-    async def send_notification(self, chat_id: int, text: str, parse_mode=DEFAULT_NONE):
+    async def send_notification(
+        self,
+        chat_id: int,
+        text: str,
+        parse_mode: str | DefaultValue[None] = DEFAULT_NONE,
+    ) -> None:
         await self.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
 
     async def is_watched_user_id(self, user_id: int) -> set[int] | None:
         async with self.__lock.reader:
             return self.__user_ids.get(user_id)
 
-    async def read_from_db(self):
+    async def read_from_db(self) -> None:
         rr = await self.pg.get_watched_users()
         async with self.__lock.writer:
             self.__user_ids = rr
@@ -227,7 +253,7 @@ class TelegramApplication:
             except Exception:
                 logger.exception("failed to handle member change event")
 
-    def watch_kafka_message(self):
+    def watch_kafka_message(self) -> None:
         loop = asyncio.get_running_loop()
         self.__background_tasks.add(loop.create_task(self.__handle_new_notify()))
         self.__background_tasks.add(loop.create_task(self.__handle_new_pm()))
@@ -239,15 +265,17 @@ class TelegramApplication:
 
     notify_decoder = msgspec.json.Decoder(debezium.NotifyValue)
 
-    async def handle_notify_change(self, msg: Msg):
-        if not msg.value:
+    async def handle_notify_change(self, m: Msg) -> None:
+        if not m.value:
             return
 
-        value: debezium.NotifyValue = self.notify_decoder.decode(msg.value)
+        value: debezium.NotifyValue = self.notify_decoder.decode(m.value)
         if value.op != "c":
             return
 
         notify = value.after
+        if notify is None:
+            return
 
         if notify.timestamp < time.time() - 60 * 2:
             # skip notification older than 2 min
@@ -283,7 +311,7 @@ class TelegramApplication:
 
     member_decoder = msgspec.json.Decoder(debezium.MemberValue)
 
-    async def handle_member(self, msg: Msg):
+    async def handle_member(self, msg: Msg) -> None:
         if not msg.value:
             return
 
@@ -317,13 +345,13 @@ class TelegramApplication:
                     )
                 )
 
-    async def start_queue_consumer(self):
+    async def start_queue_consumer(self) -> None:
         while True:
             chat_id, text, parse_mode = await self.__queue.get()
             await self.send_notification(chat_id, text, parse_mode)
             self.__queue.task_done()
 
-    def start_tasks(self):
+    def start_tasks(self) -> None:
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.start_queue_consumer())
         self.watch_kafka_message()
@@ -344,7 +372,7 @@ class OAuthHTTPServer:
         self.db = db
         self.tg = bot
 
-    async def start(self):
+    async def start(self) -> None:
         port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
         server = uvicorn.Server(
             uvicorn.Config(
@@ -364,6 +392,10 @@ class OAuthHTTPServer:
         return Response("index page")
 
     async def oauth_redirect(self, request: Request) -> Response:
+        state = request.query_params.get("state")
+        if not state:
+            return PlainTextResponse("请求无效，请在 telegram 中重新认证")
+
         return RedirectResponse(
             str(
                 yarl.URL.build(
@@ -374,7 +406,7 @@ class OAuthHTTPServer:
                         "client_id": config.BANGUMI_APP_ID,
                         "response_type": "code",
                         "redirect_uri": self.redirect_url,
-                        "state": request.query_params.get("state"),
+                        "state": state,
                     },
                 )
             )
@@ -425,8 +457,8 @@ class OAuthHTTPServer:
         return PlainTextResponse("你已经成功认证，请关闭页面返回 telegram")
 
 
-async def start(loop) -> Any:
-    redis_client = redis.from_url(str(config.REDIS_DSN))
+async def start(loop: asyncio.AbstractEventLoop) -> Any:
+    redis_client = redis.client.Redis.from_url(str(config.REDIS_DSN))
 
     pg_client = await create_pg_client()
 
