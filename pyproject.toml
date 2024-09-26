@@ -13,7 +13,6 @@ package-mode = false
 [tool.poetry.dependencies]
 python = "^3.10"
 python-telegram-bot = { extras = ["socks"], version = "21.6" }
-pydantic = "2.8.2"
 redis = { extras = ["hiredis"], version = "5.0.8" }
 yarl = "1.9.6"
 msgspec = "0.18.6"
@@ -29,6 +28,7 @@ sslog = "0.0.0a48"
 watchfiles = "0.24.0"
 pre-commit = "3.8.0"
 confluent-kafka-stubs = { git = 'https://gitlab.com/Trim21/confluent-kafka-stubs.git', rev = '9484f4aad44eab371fe952b278ab2715f3a8c780' }
+asyncpg-stubs = "^0.29.1"
 
 [tool.black]
 target_version = ['py310']
@@ -96,6 +96,7 @@ ignore = [
     'RUF003',
     'RET504',
     'TRY300',
+    'INP001',
     'TRY003',
     'TRY201',
     'TRY301',

@@ -1,7 +1,8 @@
-import pydantic
+import dataclasses
 
 
-class Cfg(pydantic.BaseModel):
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
+class Cfg:
     url: str
     url_mobile: str | None = None
     anchor: str

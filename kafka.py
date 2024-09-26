@@ -18,7 +18,7 @@ class KafkaConsumer:
         self.c = Consumer(
             {
                 "group.id": "tg-notify-bot",
-                "bootstrap.servers": f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
+                "bootstrap.servers": config.KAFKA_BROKER,
                 "auto.offset.reset": "earliest",
             }
         )

@@ -19,7 +19,7 @@ async def create_mysql_client():
         pool=await asyncmy.create_pool(
             host=config.MYSQL_DSN.host,
             port=config.MYSQL_DSN.port,
-            user=config.MYSQL_DSN.username,
+            user=config.MYSQL_DSN.user,
             password=config.MYSQL_DSN.password,
             db=config.MYSQL_DSN.path.lstrip("/"),
             autocommit=False,
