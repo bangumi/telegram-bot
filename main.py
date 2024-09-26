@@ -282,7 +282,11 @@ class TelegramApplication:
             if not msg.value:
                 return
 
-            value: debezium.MemberValue = self.member_decoder.decode(msg.value)
+            try:
+                value: debezium.MemberValue = self.member_decoder.decode(msg.value)
+            except msgspec.ValidationError:
+                return
+
             if value.op != "u":
                 return
 
