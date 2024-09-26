@@ -8,10 +8,12 @@ import secrets
 import sys
 import time
 import traceback
+from concurrent.futures.thread import ThreadPoolExecutor
 from typing import NamedTuple
 
 import aiorwlock
 import httpx
+import janus
 import msgspec.json
 import redis.asyncio as redis
 import starlette
@@ -20,7 +22,6 @@ import telegram as tg
 import telegram.ext
 import uvicorn
 import yarl
-from aiokafka import AIOKafkaConsumer, ConsumerRecord
 from loguru import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -28,10 +29,11 @@ from starlette.responses import PlainTextResponse, RedirectResponse, Response
 from telegram._utils.defaultvalue import DEFAULT_NONE
 from telegram.constants import ParseMode
 
-import mysql
 import pg
 from cfg import notify_types
+from kafka import KafkaConsumer, Msg
 from lib import config, debezium
+from mysql import MySql, create_mysql_client
 from pg import PG, create_pg_client
 
 logging.basicConfig(
@@ -62,16 +64,17 @@ class TelegramApplication:
     app: tg.ext.Application
     bot: tg.Bot
 
-    mysql: mysql.MySql
+    mysql: MySql
 
     __tg: TelegramApplication
     __user_ids: dict[int, set[int]]
     __lock: aiorwlock.RWLock()
     __queue: asyncio.Queue[Item]
+    __mq: janus.Queue[Msg]
     __background_tasks: set
 
     def __init__(
-        self, redis_client: redis.Redis, pg_client: pg.PG, mysql_client=mysql.MySql
+        self, redis_client: redis.Redis, pg_client: pg.PG, mysql_client: MySql
     ):
         application = tg.ext.Application.builder()
 
@@ -97,6 +100,7 @@ class TelegramApplication:
         self.mysql = mysql_client
         self.__lock = aiorwlock.RWLock()
         self.__queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+        self.__mq = janus.Queue(maxsize=config.QUEUE_SIZE)
         self.__background_tasks = set()
 
     async def init(self):
@@ -105,7 +109,7 @@ class TelegramApplication:
 
     @logger.catch
     async def start_command(
-        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Send a message when the command /help is issued."""
         logger.trace("start command")
@@ -135,14 +139,14 @@ class TelegramApplication:
 
     @logger.catch
     async def help_command(
-        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("help command")
         await update.message.reply_text("use command `/start`")
 
     @logger.catch
     async def logout_command(
-        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
     ):
         logger.trace("logout command")
         await self.pg.logout(chat_id=update.effective_chat.id)
@@ -151,7 +155,7 @@ class TelegramApplication:
 
     @logger.catch
     async def debug_command(
-        self, update: tg.Update, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("debug command")
         await update.message.reply_text(f"chat_id: {update.effective_chat.id}")
@@ -184,30 +188,33 @@ class TelegramApplication:
         async with self.__lock.writer:
             self.__user_ids = rr
 
-    async def start_kafka_broker(self):
-        logger.info("start_kafka_broker")
-        consumer = AIOKafkaConsumer(
-            # "debezium.chii.bangumi.chii_members",
+    def __watch_kafka_messages(self) -> None:
+        logger.info("start watching kafka message")
+        consumer = KafkaConsumer(
             "debezium.chii.bangumi.chii_notify",
-            bootstrap_servers=f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
-            group_id="tg-notify-bot",
-            enable_auto_commit=False,
         )
-        await consumer.start()
-        try:
-            msg: ConsumerRecord
-            async for msg in consumer:
-                match msg.topic:
-                    # case "debezium.chii.bangumi.chii_members":
-                    #     await self.handle_member(msg)
-                    case "debezium.chii.bangumi.chii_notify":
-                        await self.handle_notify_change(msg)
-                await consumer.commit()
+        sq = self.__mq.sync_q
+        for msg in consumer:
+            match msg.topic:
+                # case "debezium.chii.bangumi.chii_members":
+                #     await self.handle_member(msg)
+                case "debezium.chii.bangumi.chii_notify":
+                    sq.put(msg)
 
-        finally:
-            await consumer.stop()
+    async def __handle_kafka_messages(self) -> None:
+        q = self.__mq.async_q
+        while True:
+            msg = await q.get()
+            await self.handle_notify_change(msg)
 
-    async def handle_notify_change(self, msg: ConsumerRecord):
+    async def watch_kafka_message(self):
+        loop = asyncio.get_running_loop()
+        self.__background_tasks.add(loop.create_task(self.__handle_kafka_messages()))
+        self.__background_tasks.add(
+            loop.run_in_executor(ThreadPoolExecutor(), self.__watch_kafka_messages)
+        )
+
+    async def handle_notify_change(self, msg: Msg):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
             if not msg.value:
                 return
@@ -254,7 +261,7 @@ class TelegramApplication:
             for c in char:
                 await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
-    async def handle_member(self, msg: ConsumerRecord):
+    async def handle_member(self, msg: Msg):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
             if not msg.value:
                 return
@@ -291,31 +298,31 @@ class TelegramApplication:
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.start_queue_consumer())
 
-        def _exit(*args, **kwargs):
+        def _exit(*_args, **_kwargs):
             sys.exit(1)
 
         task.add_done_callback(_exit)
         self.__background_tasks.add(task)
-        task = loop.create_task(self.start_kafka_broker())
+        task = loop.create_task(self.watch_kafka_message())
         task.add_done_callback(_exit)
         self.__background_tasks.add(task)
 
 
 class OAuthHTTPServer:
-    def __init__(self, redis: redis.Redis, db: PG, bot: TelegramApplication):
+    def __init__(self, r: redis.Redis, db: PG, bot: TelegramApplication):
         self.app = starlette.applications.Starlette()
         self.app.add_route("/", self.index_path, ["GET"])
         self.app.add_route("/redirect", self.oauth_redirect, ["GET"])
         self.app.add_route("/callback", self.oauth_callback, ["GET"])
         self.redirect_url = str(config.EXTERNAL_HTTP_ADDRESS.with_path("/callback"))
 
-        self.redis = redis
+        self.redis = r
 
         self.http_client = httpx.AsyncClient()
         self.db = db
         self.tg = bot
 
-    async def index_path(self, request: Request) -> Response:
+    async def index_path(self, _request: Request) -> Response:
         return Response("index page")
 
     async def oauth_redirect(self, request: Request) -> Response:
@@ -403,11 +410,11 @@ async def start() -> None:
     tg_app = TelegramApplication(
         redis_client=redis_client,
         pg_client=pg_client,
-        mysql_client=await mysql.create_mysql_client(),
+        mysql_client=await create_mysql_client(),
     )
     await tg_app.init()
 
-    http_server = OAuthHTTPServer(redis=redis_client, db=pg_client, bot=tg_app)
+    http_server = OAuthHTTPServer(r=redis_client, db=pg_client, bot=tg_app)
     async with tg_app.app:
         await tg_app.app.initialize()
         await tg_app.app.start()
