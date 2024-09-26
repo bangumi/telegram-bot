@@ -70,8 +70,11 @@ class TelegramApplication:
     __user_ids: dict[int, set[int]]
     __lock: aiorwlock.RWLock()
     __queue: asyncio.Queue[Item]
-    __mq: asyncio.Queue[Msg]
     __background_tasks: set
+
+    # queue for kafka message
+    __notify_queue: asyncio.Queue[Msg]
+    __pm_queue: asyncio.Queue[Msg]
 
     def __init__(
         self, redis_client: redis.Redis, pg_client: pg.PG, mysql_client: MySql
@@ -100,7 +103,8 @@ class TelegramApplication:
         self.mysql = mysql_client
         self.__lock = aiorwlock.RWLock()
         self.__queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
-        self.__mq = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+        self.__notify_queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
+        self.__pm_queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
         self.__background_tasks = set()
 
     async def init(self):
@@ -190,28 +194,36 @@ class TelegramApplication:
 
     @sslog.logger.catch
     def __watch_kafka_messages(self, loop: asyncio.AbstractEventLoop) -> None:
-        q = self.__mq
         logger.info("start watching kafka message")
         consumer = KafkaConsumer(
-            "debezium.chii",
+            "debezium.chii.bangumi.chii_members",
             "debezium.chii.bangumi.chii_notify",
         )
         for msg in consumer:
             match msg.topic:
-                # case "debezium.chii.bangumi.chii_members":
-                #     await self.handle_member(msg)
+                case "debezium.chii.bangumi.chii_members":
+                    asyncio.run_coroutine_threadsafe(
+                        self.__pm_queue.put(msg), loop
+                    ).result()
                 case "debezium.chii.bangumi.chii_notify":
-                    asyncio.run_coroutine_threadsafe(q.put(msg), loop).result()
+                    asyncio.run_coroutine_threadsafe(
+                        self.__notify_queue.put(msg), loop
+                    ).result()
 
-    async def __handle_kafka_messages(self) -> None:
+    async def __handle_new_notify(self) -> None:
         while True:
-            msg = await self.__mq.get()
-            print("new message from queue")
+            msg = await self.__notify_queue.get()
             await self.handle_notify_change(msg)
+
+    async def __handle_new_pm(self) -> None:
+        while True:
+            msg = await self.__pm_queue.get()
+            await self.handle_member(msg)
 
     def watch_kafka_message(self):
         loop = asyncio.get_running_loop()
-        self.__background_tasks.add(loop.create_task(self.__handle_kafka_messages()))
+        self.__background_tasks.add(loop.create_task(self.__handle_new_notify()))
+        self.__background_tasks.add(loop.create_task(self.__handle_new_pm()))
         self.__background_tasks.add(
             Thread(target=self.__watch_kafka_messages, args=(loop,)).start()
         )
@@ -263,32 +275,32 @@ class TelegramApplication:
             for c in char:
                 await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
+    member_decoder = msgspec.json.Decoder(debezium.MemberValue)
+
     async def handle_member(self, msg: Msg):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
             if not msg.value:
                 return
 
-            value: debezium.MemberValue = msgspec.json.decode(
-                msg.value, type=debezium.MemberValue
-            )
-            if value.payload.op != "u":
+            value: debezium.MemberValue = self.member_decoder.decode(msg.value)
+            if value.op != "u":
                 return
 
-            if value.payload.after.new_notify <= value.payload.before.new_notify:
+            after = value.after
+            before = value.before
+
+            if after is None:
+                return
+            if before is None:
                 return
 
-            if not value.payload.after.new_notify:
+            if after.newpm > before.newpm:
                 return
 
-            user_id = value.payload.after.uid
+            user_id = after.uid
             if char := await self.is_watched_user_id(user_id):
                 for c in char:
-                    await self.__queue.put(
-                        Item(
-                            c,
-                            f"你有 {value.payload.after.new_notify} 条新通知",
-                        )
-                    )
+                    await self.__queue.put(Item(c, "你有新私信"))
 
     async def start_queue_consumer(self):
         while True:

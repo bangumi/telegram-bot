@@ -1,13 +1,6 @@
 import msgspec
 
 
-class ChiiMember(msgspec.Struct):
-    """table of chii_members as json"""
-
-    uid: int
-    new_notify: int
-
-
 class ChiiNotify(msgspec.Struct):
     """table of chii_notify as json"""
 
@@ -35,11 +28,14 @@ class NotifyValue(msgspec.Struct):
     op: str  # 'r', 'c', 'd' ...
 
 
-class MemberValuePayload(msgspec.Struct):
-    before: ChiiMember | None
-    after: ChiiMember | None
-    op: str  # 'r', 'c', 'd' ...
+class ChiiMember(msgspec.Struct):
+    """table of chii_members as json"""
+
+    uid: int
+    newpm: int
 
 
 class MemberValue(msgspec.Struct):
-    payload: MemberValuePayload
+    before: ChiiMember | None
+    after: ChiiMember | None
+    op: str  # 'r', 'c', 'd' ...
