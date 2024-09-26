@@ -1,4 +1,5 @@
 from typing import Iterator, NamedTuple
+from uuid import uuid4
 
 from confluent_kafka import Consumer
 from sslog import logger
@@ -17,7 +18,7 @@ class KafkaConsumer:
     def __init__(self, *topics: str):
         self.c = Consumer(
             {
-                "group.id": "tg-notify-bot",
+                "group.id": "tg-notify-bot" + str(uuid4()),
                 "bootstrap.servers": f"{config.KAFKA_BROKER.host}:{config.KAFKA_BROKER.port}",
                 "auto.offset.reset": "earliest",
             }

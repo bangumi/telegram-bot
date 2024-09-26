@@ -30,13 +30,9 @@ class ChiiNotifyField(msgspec.Struct):
     ntf_hash: int
 
 
-class NotifyValuePayload(msgspec.Struct):
+class NotifyValue(msgspec.Struct):
     after: ChiiNotify | None
     op: str  # 'r', 'c', 'd' ...
-
-
-class NotifyValue(msgspec.Struct):
-    payload: NotifyValuePayload
 
 
 class MemberValuePayload(msgspec.Struct):

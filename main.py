@@ -8,14 +8,14 @@ import secrets
 import sys
 import time
 import traceback
-from concurrent.futures.thread import ThreadPoolExecutor
+from threading import Thread
 from typing import NamedTuple
 
 import aiorwlock
 import httpx
-import janus
 import msgspec.json
 import redis.asyncio as redis
+import sslog
 import starlette
 import starlette.applications
 import telegram as tg
@@ -70,7 +70,7 @@ class TelegramApplication:
     __user_ids: dict[int, set[int]]
     __lock: aiorwlock.RWLock()
     __queue: asyncio.Queue[Item]
-    __mq: janus.Queue[Msg]
+    __mq: asyncio.Queue[Msg]
     __background_tasks: set
 
     def __init__(
@@ -79,7 +79,7 @@ class TelegramApplication:
         application = tg.ext.Application.builder()
 
         if sys.platform == "win32":
-            proxy_url = "http://127.0.0.1:7890"
+            proxy_url = "http://192.168.1.3:7890"
             application = application.proxy_url(proxy_url).get_updates_proxy_url(
                 proxy_url
             )
@@ -100,7 +100,7 @@ class TelegramApplication:
         self.mysql = mysql_client
         self.__lock = aiorwlock.RWLock()
         self.__queue = asyncio.Queue(maxsize=config.QUEUE_SIZE)
-        self.__mq = janus.Queue(maxsize=config.QUEUE_SIZE)
+        self.__mq = asyncio.Queue(maxsize=config.QUEUE_SIZE)
         self.__background_tasks = set()
 
     async def init(self):
@@ -188,44 +188,46 @@ class TelegramApplication:
         async with self.__lock.writer:
             self.__user_ids = rr
 
-    def __watch_kafka_messages(self) -> None:
+    @sslog.logger.catch
+    def __watch_kafka_messages(self, loop: asyncio.AbstractEventLoop) -> None:
+        q = self.__mq
         logger.info("start watching kafka message")
         consumer = KafkaConsumer(
+            "debezium.chii",
             "debezium.chii.bangumi.chii_notify",
         )
-        sq = self.__mq.sync_q
         for msg in consumer:
             match msg.topic:
                 # case "debezium.chii.bangumi.chii_members":
                 #     await self.handle_member(msg)
                 case "debezium.chii.bangumi.chii_notify":
-                    sq.put(msg)
+                    asyncio.run_coroutine_threadsafe(q.put(msg), loop).result()
 
     async def __handle_kafka_messages(self) -> None:
-        q = self.__mq.async_q
         while True:
-            msg = await q.get()
+            msg = await self.__mq.get()
+            print("new message from queue")
             await self.handle_notify_change(msg)
 
-    async def watch_kafka_message(self):
+    def watch_kafka_message(self):
         loop = asyncio.get_running_loop()
         self.__background_tasks.add(loop.create_task(self.__handle_kafka_messages()))
         self.__background_tasks.add(
-            loop.run_in_executor(ThreadPoolExecutor(), self.__watch_kafka_messages)
+            Thread(target=self.__watch_kafka_messages, args=(loop,)).start()
         )
+
+    notify_decoder = msgspec.json.Decoder(debezium.NotifyValue)
 
     async def handle_notify_change(self, msg: Msg):
         with logger.catch(message="unexpected exception when parsing kafka messages"):
             if not msg.value:
                 return
 
-            value: debezium.NotifyValue = msgspec.json.decode(
-                msg.value, type=debezium.NotifyValue
-            )
-            if value.payload.op != "c":
+            value: debezium.NotifyValue = self.notify_decoder.decode(msg.value)
+            if value.op != "c":
                 return
 
-            notify = value.payload.after
+            notify = value.after
 
             if notify.timestamp < time.time() - 60 * 2:
                 # skip notification older than 2 min
@@ -297,13 +299,11 @@ class TelegramApplication:
     def start_tasks(self):
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.start_queue_consumer())
+        self.watch_kafka_message()
 
         def _exit(*_args, **_kwargs):
             sys.exit(1)
 
-        task.add_done_callback(_exit)
-        self.__background_tasks.add(task)
-        task = loop.create_task(self.watch_kafka_message())
         task.add_done_callback(_exit)
         self.__background_tasks.add(task)
 
@@ -426,7 +426,7 @@ async def start() -> None:
 
 
 def main() -> None:
-    asyncio.run(start())
+    asyncio.get_event_loop().run_until_complete(start())
 
 
 if __name__ == "__main__":

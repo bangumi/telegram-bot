@@ -522,20 +522,6 @@ files = [
 all = ["flake8 (>=7.1.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
 
 [[package]]
-name = "janus"
-version = "1.0.0"
-description = "Mixed sync-async queue to interoperate between asyncio tasks and classic threads"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "janus-1.0.0-py3-none-any.whl", hash = "sha256:2596ea5482711c1ee3ef2df6c290aaf370a13c55a007826e8f7c32d696d1d00a"},
-    {file = "janus-1.0.0.tar.gz", hash = "sha256:df976f2cdcfb034b147a2d51edfc34ff6bfb12d4e2643d3ad0e10de058cb1612"},
-]
-
-[package.dependencies]
-typing-extensions = ">=3.7.4.3"
-
-[[package]]
 name = "loguru"
 version = "0.7.2"
 description = "Python logging made (stupidly) simple"
@@ -1327,4 +1313,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "facd6afcd5d48d566d8044e75761b9d200091d1e0d8d6f2650cec296a2d49474"
+content-hash = "412960f2d9282376bb5140dae3c5ce0d6015920432fcb7e99bf889dd46197fc4"
