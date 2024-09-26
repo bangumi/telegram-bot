@@ -307,7 +307,7 @@ class TelegramApplication:
                     await self.__queue.put(
                         Item(
                             c,
-                            f"你有 {after.newpm} 条新私信\n\nhttps://bgm.tv/pm/inbox.chii",
+                            "你有新私信\n\nhttps://bgm.tv/pm/inbox.chii",
                             parse_mode=ParseMode.HTML,
                         )
                     )
