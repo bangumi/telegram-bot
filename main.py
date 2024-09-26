@@ -298,7 +298,7 @@ class TelegramApplication:
             if before is None:
                 return
 
-            if after.newpm > before.newpm:
+            if after.newpm <= before.newpm:
                 return
 
             user_id = after.uid
