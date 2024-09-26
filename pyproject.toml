@@ -24,7 +24,7 @@ aiorwlock = "1.4.0"
 asyncmy = "0.2.9"
 asyncpg = "0.29.0"
 confluent-kafka = "2.5.3"
-sslog = "^0.0.0a48"
+sslog = "0.0.0a48"
 
 [tool.poetry.group.dev.dependencies]
 watchfiles = "0.24.0"
