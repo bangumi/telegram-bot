@@ -212,6 +212,7 @@ class TelegramApplication:
     async def __handle_new_notify(self) -> None:
         while True:
             msg = await self.__notify_queue.get()
+            logger.debug("new message", topic=msg.topic, offset=msg.offset)
             try:
                 await self.handle_notify_change(msg)
             except Exception:
@@ -220,6 +221,7 @@ class TelegramApplication:
     async def __handle_new_pm(self) -> None:
         while True:
             msg = await self.__pm_queue.get()
+            logger.debug("new message", topic=msg.topic, offset=msg.offset)
             try:
                 await self.handle_member(msg)
             except Exception:
