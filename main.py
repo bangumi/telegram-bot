@@ -361,8 +361,10 @@ class TelegramApplication:
     async def start_queue_consumer(self) -> None:
         while True:
             chat_id, text, parse_mode = await self.__queue.get()
-            await self.send_notification(chat_id, text, parse_mode)
-            self.__queue.task_done()
+            try:
+                await self.send_notification(chat_id, text, parse_mode)
+            except Exception:
+                logger.exception("failed to send message to chat")
 
     def start_tasks(self) -> None:
         loop = asyncio.get_event_loop()
