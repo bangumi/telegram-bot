@@ -283,6 +283,9 @@ class TelegramApplication:
         if notify is None:
             return
 
+        if notify.timestamp < 1727631509:
+            return
+
         if notify.timestamp < time.time() - 60 * 2:
             # skip notification older than 2 min
             return
