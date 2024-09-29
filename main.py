@@ -23,6 +23,7 @@ import telegram as tg
 import telegram.ext
 import uvicorn
 import yarl
+from async_lru import alru_cache
 from sslog import logger
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -35,7 +36,7 @@ from cfg import notify_types
 from kafka import KafkaConsumer, Msg
 from lib import config, debezium
 from lib.debezium import ChiiPm
-from mysql import MySql, create_mysql_client
+from mysql import MySql, User, create_mysql_client
 from pg import PG, create_pg_client
 
 logging.basicConfig(level=logging.INFO, handlers=[sslog.InterceptHandler()])
@@ -301,14 +302,14 @@ class TelegramApplication:
             return
 
         field = await self.mysql.get_notify_field(notify.nt_mid)
-        user = await self.mysql.get_user(notify.nt_from_uid)
+        user = await self.get_user_info(notify.nt_from_uid)
 
         url = f"{cfg.url.rstrip('/')}/{field.ntf_rid}"
 
         if notify.nt_related_id:
             url += f"{cfg.anchor}{notify.nt_related_id}"
 
-        msg = f"<code>{user.nickname}</code>"
+        msg = f"<code>{html.escape(user.nickname)}</code>"
 
         if cfg.suffix:
             msg += f" {cfg.prefix} <b>{html.escape(field.ntf_title)}</b> {cfg.suffix}"
@@ -351,9 +352,20 @@ class TelegramApplication:
             return
 
         logger.info("should send message for pm", user_id=user_id)
+        user = await self.get_user_info(after.msg_sid)
 
         for c in chats:
-            await self.__queue.put(Item(c, f"你有一条来自 {after.msg_sid} 的新私信"))
+            await self.__queue.put(
+                Item(
+                    c,
+                    f"有一条来自 <code>{html.escape(user.nickname)}</code> 的新私信",
+                    parse_mode=ParseMode.HTML,
+                )
+            )
+
+    @alru_cache(1024)
+    async def get_user_info(self, uid: int) -> User:
+        return await self.mysql.get_user(uid)
 
     async def get_block_list(self, uid: int) -> set[int]:
         return await self.mysql.get_blocklist(uid)
