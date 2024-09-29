@@ -229,6 +229,7 @@ class TelegramApplication:
         while True:
             try:
                 for msg in consumer:
+                    logger.debug("new message", topic=msg.topic, offset=msg.offset)
                     match msg.topic:
                         case "debezium.chii.bangumi.chii_pms":
                             asyncio.run_coroutine_threadsafe(
