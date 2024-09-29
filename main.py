@@ -6,7 +6,6 @@ import functools
 import html
 import http
 import logging
-import os
 import secrets
 import sys
 import time
@@ -215,25 +214,26 @@ class TelegramApplication:
 
     @sslog.logger.catch
     def __watch_kafka_messages(self, loop: asyncio.AbstractEventLoop) -> None:
-        try:
-            logger.info("start watching kafka message")
-            consumer = KafkaConsumer(
-                "debezium.chii.bangumi.chii_members",
-                "debezium.chii.bangumi.chii_notify",
-            )
-            for msg in consumer:
-                match msg.topic:
-                    case "debezium.chii.bangumi.chii_members":
-                        asyncio.run_coroutine_threadsafe(
-                            self.__pm_queue.put(msg), loop
-                        ).result()
-                    case "debezium.chii.bangumi.chii_notify":
-                        asyncio.run_coroutine_threadsafe(
-                            self.__notify_queue.put(msg), loop
-                        ).result()
-        except Exception:
-            logger.exception("failed to watch kafka message, exit process")
-            os._exit(1)
+        logger.info("start watching kafka message")
+        consumer = KafkaConsumer(
+            "debezium.chii.bangumi.chii_members",
+            "debezium.chii.bangumi.chii_notify",
+        )
+
+        while True:
+            try:
+                for msg in consumer:
+                    match msg.topic:
+                        case "debezium.chii.bangumi.chii_members":
+                            asyncio.run_coroutine_threadsafe(
+                                self.__pm_queue.put(msg), loop
+                            ).result()
+                        case "debezium.chii.bangumi.chii_notify":
+                            asyncio.run_coroutine_threadsafe(
+                                self.__notify_queue.put(msg), loop
+                            ).result()
+            except Exception:
+                logger.exception("failed to fetch kafka message")
 
     async def __handle_new_notify(self) -> None:
         while True:
