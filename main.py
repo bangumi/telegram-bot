@@ -312,6 +312,8 @@ class TelegramApplication:
 
         msg += f"\n\n{url}"
 
+        logger.info("should send message for pm", user_id=notify.nt_from_uid)
+
         for c in char:
             await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
@@ -342,6 +344,8 @@ class TelegramApplication:
         blocklist = await self.get_block_list(user_id)
         if after.msg_sid in blocklist:
             return
+
+        logger.info("should send message for pm", user_id=user_id)
 
         for c in chats:
             await self.__queue.put(Item(c, f"你有一条来自 {after.msg_sid} 的新私信"))
