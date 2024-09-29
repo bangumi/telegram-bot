@@ -333,9 +333,6 @@ class TelegramApplication:
         except msgspec.ValidationError:
             return
 
-        if value.op != "u":
-            return
-
         after = value.after
         if after is None:
             return
