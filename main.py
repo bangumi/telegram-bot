@@ -204,7 +204,7 @@ class TelegramApplication:
     ) -> None:
         await self.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
 
-    async def is_watched_user_id(self, user_id: int) -> set[int] | None:
+    async def get_chats(self, user_id: int) -> set[int] | None:
         async with self.__lock.reader:
             return self.__user_ids.get(user_id)
 
@@ -292,7 +292,7 @@ class TelegramApplication:
             # skip notification older than 2 min
             return
 
-        char = await self.is_watched_user_id(notify.nt_uid)
+        char = await self.get_chats(notify.nt_uid)
         if not char:
             return
 
@@ -330,17 +330,19 @@ class TelegramApplication:
 
         try:
             value: debezium.DebeziumValue[ChiiPm] = self.pms_decoder.decode(msg.value)
-        except msgspec.ValidationError as e:
-            logger.debug("failed to decode pm message", exc=e)
+        except msgspec.ValidationError:
             return
 
         after = value.after
         if after is None:
             return
 
+        if not after.msg_new:
+            return
+
         user_id = after.msg_rid
 
-        chats = await self.is_watched_user_id(user_id)
+        chats = await self.get_chats(user_id)
         if not chats:
             return
 

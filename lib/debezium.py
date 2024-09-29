@@ -40,7 +40,7 @@ class ChiiPm(msgspec.Struct):
     msg_id: int
     msg_sid: int  # sender user id
     msg_rid: int  # receiver user id
-    msg_new: bool
+    msg_new: int
     msg_title: str
     msg_message: str
     timestamp: int = msgspec.field(name="msg_dateline")
