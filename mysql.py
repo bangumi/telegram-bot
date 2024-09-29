@@ -61,3 +61,22 @@ class MySql:
             )
             uid, username, nickname = await cur.fetchone()
             return User(uid=uid, username=username, nickname=nickname)
+
+    async def get_blocklist(self, uid: int) -> set[int]:
+        conn: asyncmy.Connection
+        async with self.__pool.acquire() as conn, conn.cursor() as cur:
+            await cur.execute(
+                "SELECT blocklist from chii_memberfields where uid = %s",
+                uid,
+            )
+            row = await cur.fetchone()
+            if not row:
+                return set()
+
+            blocklist: str = row[0]
+
+            s = set()
+            for x in [v.strip() for v in blocklist.split(",")]:
+                if x:
+                    s.add(x)
+            return s

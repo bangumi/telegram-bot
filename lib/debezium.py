@@ -1,4 +1,6 @@
+import typing
 from datetime import datetime
+from typing import TypeVar
 
 import msgspec
 
@@ -32,6 +34,18 @@ class ChiiNotifyField(msgspec.Struct):
     ntf_hash: int
 
 
+class ChiiPm(msgspec.Struct):
+    """table of chii_pms"""
+
+    msg_id: int
+    msg_sid: int  # sender user id
+    msg_rid: int  # receiver user id
+    msg_new: bool
+    msg_title: str
+    msg_message: str
+    timestamp: int = msgspec.field(name="msg_dateline")
+
+
 class NotifyValue(msgspec.Struct):
     after: ChiiNotify | None
     op: str  # 'r', 'c', 'd' ...
@@ -44,8 +58,15 @@ class ChiiMember(msgspec.Struct):
     newpm: int
 
 
-class MemberValue(msgspec.Struct):
-    before: ChiiMember | None
-    after: ChiiMember | None
+T = TypeVar("T")
+
+
+class DebeziumValue(msgspec.Struct, typing.Generic[T]):
+    before: T | None
+    after: T | None
     op: str  # 'r', 'c', 'd' ...
     source: Source
+
+
+class MemberValue(DebeziumValue[ChiiMember]):
+    pass

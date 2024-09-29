@@ -34,6 +34,7 @@ import pg
 from cfg import notify_types
 from kafka import KafkaConsumer, Msg
 from lib import config, debezium
+from lib.debezium import ChiiPm
 from mysql import MySql, create_mysql_client
 from pg import PG, create_pg_client
 
@@ -216,15 +217,20 @@ class TelegramApplication:
     def __watch_kafka_messages(self, loop: asyncio.AbstractEventLoop) -> None:
         logger.info("start watching kafka message")
         consumer = KafkaConsumer(
-            "debezium.chii.bangumi.chii_members",
-            "debezium.chii.bangumi.chii_notify",
+            *[
+                "debezium.chii.bangumi." + table
+                for table in [
+                    "chii_pms",
+                    "chii_notify",
+                ]
+            ]
         )
 
         while True:
             try:
                 for msg in consumer:
                     match msg.topic:
-                        case "debezium.chii.bangumi.chii_members":
+                        case "debezium.chii.bangumi.chii_pms":
                             asyncio.run_coroutine_threadsafe(
                                 self.__pm_queue.put(msg), loop
                             ).result()
@@ -249,7 +255,7 @@ class TelegramApplication:
             msg = await self.__pm_queue.get()
             logger.debug("new message", topic=msg.topic, offset=msg.offset)
             try:
-                await self.handle_member(msg)
+                await self.handle_pm(msg)
             except Exception:
                 logger.exception("failed to handle member change event")
 
@@ -309,41 +315,42 @@ class TelegramApplication:
         for c in char:
             await self.__queue.put(Item(c, msg, parse_mode=ParseMode.HTML))
 
-    member_decoder = msgspec.json.Decoder(debezium.MemberValue)
+    pms_decoder = msgspec.json.Decoder(debezium.DebeziumValue[ChiiPm])
 
-    async def handle_member(self, msg: Msg) -> None:
+    async def handle_pm(self, msg: Msg) -> None:
         if not msg.value:
             return
 
         try:
-            value: debezium.MemberValue = self.member_decoder.decode(msg.value)
+            value: debezium.DebeziumValue[ChiiPm] = self.pms_decoder.decode(msg.value)
         except msgspec.ValidationError:
             return
 
         if value.op != "u":
             return
 
-        after = value.after
-        before = value.before
+        if value.source.ts_ms < 1727631509266:
+            return
 
+        after = value.after
         if after is None:
             return
-        if before is None:
+
+        user_id = after.msg_rid
+
+        chats = await self.is_watched_user_id(user_id)
+        if not chats:
             return
 
-        if after.newpm <= before.newpm:
+        blocklist = await self.get_block_list(user_id)
+        if after.msg_sid in blocklist:
             return
 
-        user_id = after.uid
-        if char := await self.is_watched_user_id(user_id):
-            for c in char:
-                await self.__queue.put(
-                    Item(
-                        c,
-                        "你有新私信\n\nhttps://bgm.tv/pm/inbox.chii",
-                        parse_mode=ParseMode.HTML,
-                    )
-                )
+        for c in chats:
+            await self.__queue.put(Item(c, f"你有一条来自 {after.msg_sid} 的新私信"))
+
+    async def get_block_list(self, uid: int) -> set[int]:
+        return await self.mysql.get_blocklist(uid)
 
     async def start_queue_consumer(self) -> None:
         while True:
