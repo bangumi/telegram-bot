@@ -51,13 +51,6 @@ class NotifyValue(msgspec.Struct):
     op: str  # 'r', 'c', 'd' ...
 
 
-class ChiiMember(msgspec.Struct):
-    """table of chii_members as json"""
-
-    uid: int
-    newpm: int
-
-
 T = TypeVar("T")
 
 
@@ -66,7 +59,3 @@ class DebeziumValue(msgspec.Struct, typing.Generic[T]):
     after: T | None
     op: str  # 'r', 'c', 'd' ...
     source: Source
-
-
-class MemberValue(DebeziumValue[ChiiMember]):
-    pass

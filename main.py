@@ -330,7 +330,8 @@ class TelegramApplication:
 
         try:
             value: debezium.DebeziumValue[ChiiPm] = self.pms_decoder.decode(msg.value)
-        except msgspec.ValidationError:
+        except msgspec.ValidationError as e:
+            logger.debug("failed to decode pm message", exc=e)
             return
 
         after = value.after
