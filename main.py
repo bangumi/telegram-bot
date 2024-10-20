@@ -203,7 +203,15 @@ class TelegramApplication:
         text: str,
         parse_mode: str | DefaultValue[None] = DEFAULT_NONE,
     ) -> None:
-        await self.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
+        try:
+            await self.bot.send_message(
+                chat_id=chat_id, text=text, parse_mode=parse_mode
+            )
+        except telegram.error.Forbidden as e:
+            if e.message == "Forbidden: user is deactivated":
+                await self.pg.disable_chat(chat_id)
+                await self.read_from_db()
+            raise
 
     async def get_chats(self, user_id: int) -> set[int] | None:
         async with self.__lock.reader:

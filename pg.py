@@ -4,7 +4,6 @@ import dataclasses
 from collections import defaultdict
 
 import asyncpg
-from asyncpg import Record
 
 from lib import config
 
@@ -25,10 +24,10 @@ async def create_pg_client() -> PG:
 
 
 class PG:
-    __pool: asyncpg.Pool[Record]
+    __pool: asyncpg.Pool
 
-    def __init__(self, pool: asyncpg.Pool[Record]):
-        self.__pool = pool
+    def __init__(self, pool: asyncpg.Pool):
+        self.__pool: asyncpg.Pool = pool
 
     async def init(self) -> None:
         await self.__pool.execute(
@@ -74,3 +73,9 @@ class PG:
                 d[user_id].add(chat_id)
             return d
         return {}
+
+    async def disable_chat(self, chat_id: int) -> None:
+        await self.__pool.execute(
+            "update telegram_notify_chat set disabled = 1 and disabled = 0 where chat_id = $1",
+            chat_id,
+        )
