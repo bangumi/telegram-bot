@@ -27,7 +27,7 @@ async-lru = "2.0.4"
 
 [tool.poetry.group.dev.dependencies]
 watchfiles = "0.24.0"
-pre-commit = "3.8.0"
+pre-commit = "4.0.1"
 confluent-kafka-stubs = { git = 'https://gitlab.com/Trim21/confluent-kafka-stubs.git', rev = '9484f4aad44eab371fe952b278ab2715f3a8c780' }
 asyncpg-stubs = "0.29.1"
 
