@@ -21,7 +21,7 @@ starlette = "0.40.0"
 aiorwlock = "1.4.0"
 asyncmy = "0.2.9"
 asyncpg = "0.29.0"
-confluent-kafka = "2.5.3"
+confluent-kafka = "2.6.0"
 sslog = "0.0.0a48"
 async-lru = "2.0.4"
 
