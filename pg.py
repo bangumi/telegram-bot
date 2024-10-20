@@ -76,6 +76,6 @@ class PG:
 
     async def disable_chat(self, chat_id: int) -> None:
         await self.__pool.execute(
-            "update telegram_notify_chat set disabled = 1 and disabled = 0 where chat_id = $1",
+            "update telegram_notify_chat set disabled = 1 where chat_id = $1 and disabled = 0",
             chat_id,
         )
