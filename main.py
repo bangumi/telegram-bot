@@ -329,10 +329,7 @@ class TelegramApplication:
         if not msg.value:
             return
 
-        try:
-            value: debezium.DebeziumValue[ChiiPm] = self.pms_decoder.decode(msg.value)
-        except msgspec.ValidationError:
-            return
+        value: debezium.DebeziumValue[ChiiPm] = self.pms_decoder.decode(msg.value)
 
         after = value.after
         if after is None:
