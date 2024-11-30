@@ -2,13 +2,13 @@
 
 [[package]]
 name = "aiorwlock"
-version = "1.4.0"
+version = "1.5.0"
 description = "Read write lock for asyncio."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 files = [
-    {file = "aiorwlock-1.4.0-py3-none-any.whl", hash = "sha256:cc99c42463e9915cff528d79b6eb3d518d74bc0edf9edeb8c64228445fb4714b"},
-    {file = "aiorwlock-1.4.0.tar.gz", hash = "sha256:4cea5bec4e9d03533a26919299394822a1422aa519bca9dd09178ec490f8d1cc"},
+    {file = "aiorwlock-1.5.0-py3-none-any.whl", hash = "sha256:0010cd2d2c603eb84bfee1cfd06233a976618dab90ec7108191e936137a8420a"},
+    {file = "aiorwlock-1.5.0.tar.gz", hash = "sha256:b529da24da659bdedcf68faf216595bde00db228c905197ac554773620e7fd2f"},
 ]
 
 [[package]]
@@ -1279,4 +1279,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "bd9493289bebd79f37281c5f7107f4219679dd43401dd9386117835e594aaba1"
+content-hash = "585cd8b29da7b85a6e6550d8bca346ac8c548f5f744ac4e21bd0dc946c24b1e8"
