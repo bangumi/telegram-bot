@@ -20,7 +20,7 @@ uvicorn = "0.32.1"
 starlette = "0.41.3"
 aiorwlock = "1.5.0"
 asyncmy = "0.2.9"
-asyncpg = "0.29.0"
+asyncpg = "0.30.0"
 confluent-kafka = "2.6.1"
 sslog = "0.0.0a51"
 async-lru = "2.0.4"
@@ -29,7 +29,7 @@ async-lru = "2.0.4"
 watchfiles = "0.24.0"
 pre-commit = "4.0.1"
 confluent-kafka-stubs = { git = 'https://gitlab.com/Trim21/confluent-kafka-stubs.git', rev = '9484f4aad44eab371fe952b278ab2715f3a8c780' }
-asyncpg-stubs = "0.29.1"
+asyncpg-stubs = "0.30.0"
 
 [tool.black]
 target_version = ['py310']
