@@ -14,7 +14,7 @@ package-mode = false
 python = "^3.10"
 python-telegram-bot = { extras = ["socks"], version = "21.7" }
 redis = { extras = ["hiredis"], version = "5.2.0" }
-yarl = "1.18.0"
+yarl = "1.18.3"
 msgspec = "0.18.6"
 uvicorn = "0.32.1"
 starlette = "0.41.3"
