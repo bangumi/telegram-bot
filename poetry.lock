@@ -994,17 +994,17 @@ files = [
 
 [[package]]
 name = "sslog"
-version = "0.0.0a51"
+version = "0.0.0a52"
 description = "opinionated logger based on structlog"
 optional = false
 python-versions = "~=3.8"
 files = [
-    {file = "sslog-0.0.0a51-py3-none-any.whl", hash = "sha256:786c091c9fd072d629730aeaa8cd49c677449369bf218136658867dba321b750"},
-    {file = "sslog-0.0.0a51.tar.gz", hash = "sha256:7cffce8bbcdd82399b09fb60a36788aec6437c952d19906a60cd413c8c93ecd2"},
+    {file = "sslog-0.0.0a52-py3-none-any.whl", hash = "sha256:9085e86f59fc688620d427bd5238eea4a43163f0dde9b326376309a180356126"},
+    {file = "sslog-0.0.0a52.tar.gz", hash = "sha256:fc43ff0546bda79667a6231e22d44bb49ad2b7320861ecb03420dbea236ca75d"},
 ]
 
 [package.dependencies]
-structlog = "24.4.0"
+structlog = "25.1.0"
 typing-extensions = "*"
 
 [package.extras]
@@ -1029,14 +1029,17 @@ full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7
 
 [[package]]
 name = "structlog"
-version = "24.4.0"
+version = "25.1.0"
 description = "Structured Logging for Python"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "structlog-24.4.0-py3-none-any.whl", hash = "sha256:597f61e80a91cc0749a9fd2a098ed76715a1c8a01f73e336b746504d1aad7610"},
-    {file = "structlog-24.4.0.tar.gz", hash = "sha256:b27bfecede327a6d2da5fbc96bd859f114ecc398a6389d664f62085ee7ae6fc4"},
+    {file = "structlog-25.1.0-py3-none-any.whl", hash = "sha256:843fe4f254540329f380812cbe612e1af5ec5b8172205ae634679cd35a6d6321"},
+    {file = "structlog-25.1.0.tar.gz", hash = "sha256:2ef2a572e0e27f09664965d31a576afe64e46ac6084ef5cec3c2b8cd6e4e3ad3"},
 ]
+
+[package.dependencies]
+typing-extensions = {version = "*", markers = "python_version < \"3.11\""}
 
 [package.extras]
 dev = ["freezegun (>=0.2.8)", "mypy (>=1.4)", "pretend", "pytest (>=6.0)", "pytest-asyncio (>=0.17)", "rich", "simplejson", "twisted"]
@@ -1276,4 +1279,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "fa0fb6e74d9b3d453b3934b36fb191201759feed19c7fb6a861ae94dbcd31601"
+content-hash = "ec275057479a59e52bbdf42a506515f196495112858c6a6a9541b2a35bee961e"
