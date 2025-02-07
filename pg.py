@@ -24,10 +24,10 @@ async def create_pg_client() -> PG:
 
 
 class PG:
-    __pool: asyncpg.Pool
+    __pool: asyncpg.Pool[asyncpg.Record]
 
-    def __init__(self, pool: asyncpg.Pool):
-        self.__pool: asyncpg.Pool = pool
+    def __init__(self, pool: asyncpg.Pool[asyncpg.Record]):
+        self.__pool: asyncpg.Pool[asyncpg.Record] = pool
 
     async def init(self) -> None:
         await self.__pool.execute(
