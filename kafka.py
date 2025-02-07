@@ -19,7 +19,7 @@ class KafkaConsumer:
             {
                 "group.id": "tg-notify-bot",
                 "bootstrap.servers": config.KAFKA_BROKER,
-                "auto.offset.reset": "earliest",
+                "auto.offset.reset": "latest",
             }
         )
         self.c.subscribe(list(topics))
