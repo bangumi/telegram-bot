@@ -16,5 +16,5 @@ tasks:
     cmd: python main.py
 
   lint:
-    - poetry run mypy .
-    - poetry run ruff check .
+    - mypy .
+    - ruff check .

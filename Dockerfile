@@ -1,32 +1,20 @@
-# syntax=docker/dockerfile:1@sha256:93bfd3b68c109427185cd78b4779fc82b484b0b7618e36d0f104d4d801e66d25
-
-### convert poetry.lock to requirements.txt ###
-FROM python:3.10-slim@sha256:66aad90b231f011cb80e1966e03526a7175f0586724981969b23903abac19081 AS poetry
+FROM ghcr.io/astral-sh/uv:debian-slim@sha256:3ac4e2ef46fd5a0fb0cf5af9a421435513fec1b2a66e1379a7981dc03470fd33 AS build
 
 WORKDIR /app
 
-ENV PIP_ROOT_USER_ACTION=ignore
+COPY uv.lock pyproject.toml ./
 
-COPY requirements-poetry.txt ./
-RUN pip install -r requirements-poetry.txt
+RUN uv export --no-group dev --frozen --no-emit-project > /app/requirements.txt
 
-COPY pyproject.toml poetry.lock ./
-RUN poetry export -f requirements.txt --output requirements.txt
-
-### final image ###
 FROM python:3.10-slim@sha256:66aad90b231f011cb80e1966e03526a7175f0586724981969b23903abac19081
 
+ENV PIP_ROOT_USER_ACTION=ignore
 WORKDIR /app
 
-ENV PYTHONPATH=/app
+COPY --from=build /app/requirements.txt .
 
-COPY --from=poetry /app/requirements.txt ./requirements.txt
-
-ENV PIP_ROOT_USER_ACTION=ignore
-
-RUN pip install -U pip && \
-    pip install -r requirements.txt
+RUN pip install --only-binary=:all: --no-cache --no-deps -r requirements.txt
 
 ENTRYPOINT [ "python", "./main.py" ]
 
-COPY . ./
+COPY . .

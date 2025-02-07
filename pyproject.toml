@@ -1,44 +1,39 @@
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["flit-core~=3.10"]
+build-backend = "flit_core.buildapi"
 
-[tool.poetry]
-name = "telegram-bot"
-version = "0.1.0"
-description = ""
-authors = ["Trim21 <trim21.me@gmail.com>"]
-readme = "readme.md"
-package-mode = false
+[project]
+name = 'project'
+version = "0"
+requires-python = "~=3.10.16"
+dependencies = [
+    'aiorwlock (==1.5.0)',
+    'async-lru (==2.0.4)',
+    'asyncmy (==0.2.10)',
+    'asyncpg (==0.30.0)',
+    'confluent-kafka (==2.8.0)',
+    'msgspec (==0.19.0)',
+    'python-telegram-bot[socks] (==21.10)',
+    'redis[hiredis] (==5.2.1)',
+    'sslog (==0.0.0a52)',
+    'starlette (==0.45.3)',
+    'uvicorn (==0.34.0)',
+    'watchfiles (==1.0.0)',
+    'yarl (==1.18.3)',
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-python-telegram-bot = { extras = ["socks"], version = "21.10" }
-redis = { extras = ["hiredis"], version = "5.2.1" }
-yarl = "1.18.3"
-msgspec = "0.19.0"
-uvicorn = "0.34.0"
-starlette = "0.45.3"
-aiorwlock = "1.5.0"
-asyncmy = "0.2.10"
-asyncpg = "0.30.0"
-confluent-kafka = "2.8.0"
-sslog = "0.0.0a52"
-async-lru = "2.0.4"
+[dependency-groups]
+dev = [
+    'asyncpg-stubs (==0.30.0)',
+    'types-confluent-kafka == 1.3.1',
+    'mypy==1.15.0'
+]
 
-[tool.poetry.group.dev.dependencies]
-watchfiles = "1.0.0"
-pre-commit = "4.1.0"
-confluent-kafka-stubs = { git = 'https://gitlab.com/Trim21/confluent-kafka-stubs.git', rev = '9484f4aad44eab371fe952b278ab2715f3a8c780' }
-asyncpg-stubs = "0.30.0"
-
-[tool.black]
-target_version = ['py310']
-
-extend-exclude = "api/v1"
+[tool.uv]
+package = false
 
 [tool.ruff]
 extend-exclude = [".venv", "api"]
-target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -106,7 +101,6 @@ ignore = [
     'PLR2004',
     'PGH003',
 ]
-
 unfixable = ['F401', 'F841']
 
 [tool.mypy]

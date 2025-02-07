@@ -78,5 +78,5 @@ class MySql:
             s = set()
             for x in [v.strip() for v in blocklist.split(",")]:
                 if x:
-                    s.add(x)
+                    s.add(int(x))
             return s
