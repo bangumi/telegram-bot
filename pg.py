@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import dataclasses
 from collections import defaultdict
 
 import asyncpg
+import msgspec
 
 from lib import config
 
 
-@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
-class Table:
+class Table(msgspec.Struct):
     chat_id: int
     user_id: int
     disabled: bool

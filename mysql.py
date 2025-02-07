@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import dataclasses
-
 import asyncmy
+import msgspec
 
 from lib import config
 from lib.debezium import ChiiNotifyField
 
 
-@dataclasses.dataclass
-class User:
+class User(msgspec.Struct):
     uid: int
     username: str
     nickname: str
