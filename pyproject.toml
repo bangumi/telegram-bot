@@ -17,7 +17,7 @@ redis = { extras = ["hiredis"], version = "5.2.1" }
 yarl = "1.18.3"
 msgspec = "0.19.0"
 uvicorn = "0.32.1"
-starlette = "0.41.3"
+starlette = "0.45.3"
 aiorwlock = "1.5.0"
 asyncmy = "0.2.10"
 asyncpg = "0.30.0"
