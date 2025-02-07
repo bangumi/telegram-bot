@@ -18,7 +18,6 @@ dependencies = [
     'sslog (==0.0.0a52)',
     'starlette (==0.45.3)',
     'uvicorn (==0.34.0)',
-    'watchfiles (==1.0.0)',
     'yarl (==1.18.3)',
 ]
 
