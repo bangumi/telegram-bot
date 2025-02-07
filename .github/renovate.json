@@ -20,6 +20,16 @@
   "semanticCommitType": "build",
   "packageRules": [
     {
+      "matchPackageNames": [
+        "python"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false
+    },
+    {
       "matchManagers": [
         "pre-commit"
       ],
@@ -32,13 +42,7 @@
         "dockerfile"
       ],
       "pinDigests": true,
-      "rangeStrategy": "pin",
-      "minor": {
-        "enabled": false
-      },
-      "major": {
-        "enabled": false
-      }
+      "rangeStrategy": "pin"
     }
   ]
 }
