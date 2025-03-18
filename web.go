@@ -6,6 +6,8 @@ import (
 	"net/url"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-resty/resty/v2"
 )
 
 // OAuthHTTPServer implements a simple HTTP server for OAuth callbacks
@@ -16,6 +18,7 @@ type OAuthHTTPServer struct {
 }
 
 type handler struct {
+	client      *resty.Client
 	redirectURL string
 }
 
@@ -24,6 +27,7 @@ func NewOAuthHTTPServer(port int) *OAuthHTTPServer {
 	var h = &handler{}
 
 	mux := chi.NewRouter()
+	mux.Use(middleware.Recoverer)
 	mux.Get("/callback", h.handleOAuthCallback)
 	mux.Get("/redirect", h.oauthRedirect)
 
@@ -68,24 +72,23 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp, err := h.client.R().
+		SetFormData(map[string]string{
+			"client_id":     BANGUMI_APP_ID,
+			"client_secret": BANGUMI_APP_SECRET,
+			"grant_type":    "authorization_code",
+			"code":          code,
+			"redirect_uri":  h.redirectURL,
+		}).
+		Post("https://next.bgm.tv/oauth/access_token")
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(resp.Body())
+
 	// Redirect or display success message
 	w.Header().Set("Content-Type", "text/html")
-	html := `
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<title>Authentication Successful</title>
-			<style>
-				body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-				.success { color: green; }
-			</style>
-		</head>
-		<body>
-			<h1 class="success">Authentication Successful</h1>
-			<p>You can now close this window and return to the application.</p>
-		</body>
-		</html>
-		`
-
-	w.Write([]byte(html))
+	w.Write([]byte(""))
 }
