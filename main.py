@@ -20,7 +20,7 @@ import sslog
 import starlette
 import starlette.applications
 import telegram as tg
-import telegram.ext
+import telegram.ext as tg_ext
 import uvicorn
 import yarl
 from async_lru import alru_cache
@@ -62,7 +62,7 @@ def state_to_redis_key(state: str) -> str:
 
 
 class TelegramApplication:
-    app: tg.ext.Application[Any, Any, Any, Any, Any, Any]
+    app: tg_ext.Application[Any, Any, Any, Any, Any, Any]
     bot: tg.Bot
 
     mysql: MySql
@@ -80,7 +80,7 @@ class TelegramApplication:
     def __init__(
         self, redis_client: redis.Redis, pg_client: pg.PG, mysql_client: MySql
     ):
-        builder = tg.ext.Application.builder()
+        builder = tg_ext.Application.builder()
 
         if sys.platform == "win32":
             proxy_url = "http://192.168.1.3:7890"
@@ -89,10 +89,10 @@ class TelegramApplication:
         application = builder.token(config.TELEGRAM_BOT_TOKEN).build()
 
         # on different commands - answer in Telegram
-        application.add_handler(tg.ext.CommandHandler("start", self.start_command))
-        application.add_handler(tg.ext.CommandHandler("logout", self.logout_command))
-        application.add_handler(tg.ext.CommandHandler("help", self.start_command))
-        application.add_handler(tg.ext.CommandHandler("debug", self.debug_command))
+        application.add_handler(tg_ext.CommandHandler("start", self.start_command))
+        application.add_handler(tg_ext.CommandHandler("logout", self.logout_command))
+        application.add_handler(tg_ext.CommandHandler("help", self.start_command))
+        application.add_handler(tg_ext.CommandHandler("debug", self.debug_command))
 
         application.add_error_handler(self.error_handler)
 
@@ -121,7 +121,7 @@ class TelegramApplication:
 
     @logger.catch
     async def start_command(
-        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Send a message when the command /help is issued."""
         logger.trace("start command")
@@ -154,7 +154,7 @@ class TelegramApplication:
 
     @logger.catch
     async def help_command(
-        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("help command")
         if update.message is None:
@@ -163,7 +163,7 @@ class TelegramApplication:
 
     @logger.catch
     async def logout_command(
-        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("logout command")
         if update.effective_chat is None:
@@ -177,7 +177,7 @@ class TelegramApplication:
 
     @logger.catch
     async def debug_command(
-        self, update: tg.Update, _context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.trace("debug command")
 
@@ -193,7 +193,7 @@ class TelegramApplication:
 
     @logger.catch
     async def error_handler(
-        self, _update: object, context: tg.ext.ContextTypes.DEFAULT_TYPE
+        self, _update: object, context: tg_ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.exception("Exception while handling an update", error=context.error)
 
@@ -207,7 +207,7 @@ class TelegramApplication:
             await self.bot.send_message(
                 chat_id=chat_id, text=text, parse_mode=parse_mode
             )
-        except telegram.error.Forbidden as e:
+        except tg.error.Forbidden as e:
             if e.message == "Forbidden: user is deactivated":
                 await self.pg.disable_chat(chat_id)
                 await self.read_from_db()
