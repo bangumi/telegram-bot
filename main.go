@@ -111,12 +111,10 @@ func main() {
 				continue
 			}
 
-			fmt.Println(len(msg.Value))
-
-			switch {
-			case strings.HasSuffix(msg.Topic, ".chii_pms"):
+			switch msg.Topic {
+			case "debezium.chii.bangumi.chii_pms":
 				h.handlePM(msg)
-			case strings.HasSuffix(msg.Topic, ".chii_notify"):
+			case "debezium.chii.bangumi.chii_notify":
 				h.handleNotify(msg)
 			}
 		}
@@ -134,4 +132,39 @@ func (h *handler) handlePM(msg kafka.Message) {
 
 func (h *handler) handleNotify(msg kafka.Message) {
 
+}
+
+func (h *handler) sendNotification(ctx context.Context, chatID int64, text string, parseMode string) error {
+	// Create message sending parameters
+	params := &telego.SendMessageParams{
+		ChatID: telego.ChatID{ID: chatID},
+		Text:   text,
+	}
+
+	// Add parse mode if it's not empty
+	if parseMode != "" {
+		params.ParseMode = parseMode
+	}
+
+	// Send message
+	_, err := h.bot.SendMessage(ctx, params)
+	if err == nil {
+		return nil
+	}
+
+	// Check if the error is because the user is deactivated
+	if strings.Contains(err.Error(), "Forbidden: user is deactivated") {
+		return h.disableChat(ctx, chatID)
+	}
+
+	return err
+}
+
+func (h *handler) disableChat(ctx context.Context, chatID int64) error {
+	_, dbErr := h.pg.ExecContext(ctx, "UPDATE telegram_notify_chat SET disabled = 1 WHERE chat_id = $1", chatID)
+	if dbErr != nil {
+		log.Err(dbErr).Int64("chat_id", chatID).Msg("failed to disable chat")
+	}
+
+	return dbErr
 }
