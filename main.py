@@ -383,12 +383,6 @@ class TelegramApplication:
             except Exception:
                 logger.exception("failed to send message to chat")
 
-    def start_tasks(self) -> None:
-        loop = asyncio.get_event_loop()
-        task = loop.create_task(self.start_queue_consumer())
-        self.watch_kafka_message()
-        self.__background_tasks.add(task)
-
 
 class OAuthHTTPServer:
     def __init__(self, r: redis.Redis, db: PG, bot: TelegramApplication):
@@ -476,9 +470,6 @@ class OAuthHTTPServer:
             raise HTTPException(http.HTTPStatus.BAD_GATEWAY, "请尝试重新认证")
         data = msgspec.json.decode(resp.text, type=BangumiOAuthResponse)
 
-        await self.db.insert_chat_bangumi_map(
-            user_id=data.user_id, chat_id=redis_state.chat_id
-        )
 
         await self.tg.send_notification(
             chat_id=redis_state.chat_id, text=f"已经成功关联用户 {data.user_id}"
@@ -488,34 +479,3 @@ class OAuthHTTPServer:
 
         return PlainTextResponse("你已经成功认证，请关闭页面返回 telegram")
 
-
-async def start(loop: asyncio.AbstractEventLoop) -> Any:
-    redis_client = redis.client.Redis.from_url(str(config.REDIS_DSN))
-
-    pg_client = await create_pg_client()
-
-    tg_app = TelegramApplication(
-        redis_client=redis_client,
-        pg_client=pg_client,
-        mysql_client=await create_mysql_client(),
-    )
-
-    http_server = OAuthHTTPServer(r=redis_client, db=pg_client, bot=tg_app)
-
-    tasks = set()
-    tasks.add(loop.create_task(tg_app.start(), name="telegram bot"))
-    tasks.add(loop.create_task(http_server.start(), name="exc"))
-
-    with contextlib.suppress(Exception):
-        await asyncio.gather(*tasks)
-
-    await loop.shutdown_default_executor()
-
-
-def main() -> None:
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(start(loop))
-
-
-if __name__ == "__main__":
-    main()

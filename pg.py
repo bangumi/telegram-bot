@@ -18,7 +18,6 @@ async def create_pg_client() -> PG:
     pool = asyncpg.create_pool(dsn=str(config.PG_DSN))
     await pool
     db = PG(pool)
-    await db.init()
     return db
 
 
@@ -27,25 +26,6 @@ class PG:
 
     def __init__(self, pool: asyncpg.Pool[asyncpg.Record]):
         self.__pool: asyncpg.Pool[asyncpg.Record] = pool
-
-    async def init(self) -> None:
-        await self.__pool.execute(
-            """
-            CREATE TABLE IF NOT EXISTS telegram_notify_chat (
-                chat_id bigint,
-                user_id bigint,
-                disabled int2,
-                primary key (chat_id, user_id)
-            );
-            """
-        )
-
-    async def insert_chat_bangumi_map(self, *, chat_id: int, user_id: int) -> None:
-        await self.__pool.execute(
-            "INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)",
-            chat_id,
-            user_id,
-        )
 
     async def logout(self, *, chat_id: int) -> None:
         await self.__pool.execute(

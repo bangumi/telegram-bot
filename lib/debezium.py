@@ -59,3 +59,4 @@ class DebeziumValue(msgspec.Struct, typing.Generic[T]):
     after: T | None
     op: str  # 'r', 'c', 'd' ...
     source: Source
+
