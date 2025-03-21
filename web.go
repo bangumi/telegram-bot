@@ -5,60 +5,18 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-resty/resty/v2"
-	"github.com/jmoiron/sqlx"
 	"github.com/mymmrac/telego"
-	"github.com/redis/rueidis"
 )
 
-// OAuthHTTPServer implements a simple HTTP server for OAuth callbacks
-type OAuthHTTPServer struct {
-	port int
-	s    *chi.Mux
-	h    *handler
-}
-
-type handler struct {
-	pg          *sqlx.DB
-	bot         *telego.Bot
-	redis       rueidis.Client
-	client      *resty.Client
-	redirectURL string
-}
-
-// NewOAuthHTTPServer creates a new OAuth HTTP server
-func NewOAuthHTTPServer(pg *sqlx.DB, redis rueidis.Client, bot *telego.Bot, port int) *OAuthHTTPServer {
-	var url = EXTERNAL_HTTP_ADDRESS
-	if url == "" {
-		url = "http://127.0.0.1:4562"
-	}
-
-	var h = &handler{
-		pg:          pg,
-		bot:         bot,
-		redis:       redis,
-		redirectURL: strings.TrimRight(url, "/") + "/callback",
-	}
-
+func (h *handler) ListenAndServe() error {
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)
 	mux.Get("/callback", h.handleOAuthCallback)
 	mux.Get("/redirect", h.oauthRedirect)
-
-	return &OAuthHTTPServer{
-		port: port,
-		s:    mux,
-		h:    h,
-	}
-}
-
-// Start initializes and starts the HTTP server
-func (s *OAuthHTTPServer) Start() error {
-	return http.ListenAndServe(fmt.Sprintf(":%d", s.port), s.s)
+	return http.ListenAndServe(fmt.Sprintf(":%d", h.config.PORT), mux)
 }
 
 func (h *handler) oauthRedirect(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +29,7 @@ func (h *handler) oauthRedirect(w http.ResponseWriter, r *http.Request) {
 	redirectURL := "https://next.bgm.tv/oauth/authorize"
 
 	query := url.Values{}
-	query.Add("client_id", BANGUMI_APP_ID)
+	query.Add("client_id", h.config.BANGUMI_APP_ID)
 	query.Add("response_type", "code")
 	query.Add("redirect_uri", "your_redirect_url")
 	query.Add("state", state)
@@ -95,8 +53,8 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 
 	resp, err := h.client.R().
 		SetFormData(map[string]string{
-			"client_id":     BANGUMI_APP_ID,
-			"client_secret": BANGUMI_APP_SECRET,
+			"client_id":     h.config.BANGUMI_APP_ID,
+			"client_secret": h.config.BANGUMI_APP_SECRET,
 			"grant_type":    "authorization_code",
 			"code":          code,
 			"redirect_uri":  h.redirectURL,

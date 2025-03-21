@@ -383,12 +383,6 @@ class TelegramApplication:
             except Exception:
                 logger.exception("failed to send message to chat")
 
-    def start_tasks(self) -> None:
-        loop = asyncio.get_event_loop()
-        task = loop.create_task(self.start_queue_consumer())
-        self.watch_kafka_message()
-        self.__background_tasks.add(task)
-
 
 class OAuthHTTPServer:
     def __init__(self, r: redis.Redis, db: PG, bot: TelegramApplication):

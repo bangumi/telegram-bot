@@ -13,6 +13,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/lo v1.49.1
 	github.com/segmentio/kafka-go v0.4.47
+	go-simpler.org/env v0.12.0
 	golang.org/x/sync v0.12.0
 )
 

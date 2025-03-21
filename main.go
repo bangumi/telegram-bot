@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/go-resty/resty/v2"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -15,34 +15,47 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 	"github.com/segmentio/kafka-go"
+	"go-simpler.org/env"
 	"golang.org/x/sync/errgroup"
 )
 
-func main() {
-	// Get Bot token from environment variables
-	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+type handler struct {
+	config      Config
+	pg          *sqlx.DB
+	mysql       *sqlx.DB
+	bot         *telego.Bot
+	redis       rueidis.Client
+	client      *resty.Client
+	redirectURL string
+}
 
-	pg := sqlx.MustConnect("postgres", os.Getenv("PG_DSN"))
-	mysql := sqlx.MustConnect("mysql", os.Getenv("MYSQL_DSN"))
-	redis := lo.Must(rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{os.Getenv("REDIS_DSN")}}))
+func main() {
+	var cfg Config
+	lo.Must0(env.Load(&cfg, nil))
+
+	// Get Bot token from environment variables
+
+	pg := sqlx.MustConnect("postgres", cfg.PG_DSN)
+	mysql := sqlx.MustConnect("mysql", cfg.MYSQL_DSN)
+	redis := lo.Must(rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{cfg.REDIS_DSN}}))
 
 	// Create bot and enable debugging info
 	// Note: Please keep in mind that default logger may expose sensitive information,
 	// use in development only
 	// (more on configuration in examples/configuration/main.go)
-	bot, err := telego.NewBot(botToken, telego.WithDefaultDebugLogger())
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	bot := lo.Must(telego.NewBot(cfg.BOT_TOKEN, telego.WithDefaultDebugLogger()))
 
-	oauth := NewOAuthHTTPServer(pg, redis, bot, 4096)
+	h := &handler{
+		config:      cfg,
+		pg:          pg,
+		mysql:       mysql,
+		bot:         bot,
+		redis:       redis,
+		redirectURL: strings.TrimRight(cfg.EXTERNAL_HTTP_ADDRESS, "/") + "/callback",
+	}
 
 	// Call method getMe (https://core.telegram.org/bots/api#getme)
-	botUser, err := bot.GetMe(context.Background())
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
+	botUser := lo.Must(bot.GetMe(context.Background()))
 
 	var eg errgroup.Group
 
@@ -68,12 +81,12 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		return oauth.Start()
+		return h.ListenAndServe()
 	})
 
 	eg.Go(func() error {
 		k := kafka.NewReader(kafka.ReaderConfig{
-			Brokers: []string{os.Getenv("KAFKA_BROKER")},
+			Brokers: []string{cfg.KAFKA_BROKER},
 			GroupID: "tg-notify-bot",
 			GroupTopics: []string{
 				"debezium.chii.bangumi.chii_pms",
@@ -95,10 +108,23 @@ func main() {
 
 			switch {
 			case strings.HasSuffix(msg.Topic, ".chii_pms"):
+				h.handlePM(msg)
 			case strings.HasSuffix(msg.Topic, ".chii_notify"):
+				h.handleNotify(msg)
 			}
 		}
 	})
 
-	eg.Wait()
+	err := eg.Wait()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (h *handler) handlePM(msg kafka.Message) {
+
+}
+
+func (h *handler) handleNotify(msg kafka.Message) {
+
 }

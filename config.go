@@ -1,11 +1,19 @@
 package main
 
-import (
-	"os"
-)
+type Config struct {
+	BOT_TOKEN string `env:"TELEGRAM_BOT_TOKEN"`
 
-var BotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-var BANGUMI_APP_ID = os.Getenv("BANGUMI_APP_ID")
-var BANGUMI_APP_SECRET = os.Getenv("BANGUMI_APP_SECRET")
+	BANGUMI_APP_ID     string `env:"BANGUMI_APP_ID"`
+	BANGUMI_APP_SECRET string `env:"BANGUMI_APP_SECRET"`
 
-var EXTERNAL_HTTP_ADDRESS = os.Getenv("EXTERNAL_HTTP_ADDRESS")
+	EXTERNAL_HTTP_ADDRESS string `env:"EXTERNAL_HTTP_ADDRESS" default:"http://127.0.0.1:4562"`
+
+	PORT uint16 `env:"PORT" default:"4096"`
+
+	REDIS_DSN string `env:"REDIS_DSN"`
+
+	PG_DSN    string `env:"PG_DSN"`
+	MYSQL_DSN string `env:"MYSQL_DSN"`
+
+	KAFKA_BROKER string `env:"KAFKA_BROKER"`
+}
