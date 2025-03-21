@@ -23,7 +23,7 @@ type OAuthHTTPServer struct {
 }
 
 type handler struct {
-	db          *sqlx.DB
+	pg          *sqlx.DB
 	bot         *telego.Bot
 	redis       rueidis.Client
 	client      *resty.Client
@@ -31,14 +31,14 @@ type handler struct {
 }
 
 // NewOAuthHTTPServer creates a new OAuth HTTP server
-func NewOAuthHTTPServer(db *sqlx.DB, redis rueidis.Client, bot *telego.Bot, port int) *OAuthHTTPServer {
+func NewOAuthHTTPServer(pg *sqlx.DB, redis rueidis.Client, bot *telego.Bot, port int) *OAuthHTTPServer {
 	var url = EXTERNAL_HTTP_ADDRESS
 	if url == "" {
 		url = "http://127.0.0.1:4562"
 	}
 
 	var h = &handler{
-		db:          db,
+		pg:          pg,
 		bot:         bot,
 		redis:       redis,
 		redirectURL: strings.TrimRight(url, "/") + "/callback",
@@ -120,7 +120,7 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 	var redisState RedisOAuthState
 	json.Unmarshal(v, &state)
 
-	_, err = h.db.ExecContext(req.Context(), `
+	_, err = h.pg.ExecContext(req.Context(), `
 	INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)`,
 		redisState.ChatID,
 		r.UserID,
