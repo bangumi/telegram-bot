@@ -39,6 +39,13 @@ func main() {
 	mysql := sqlx.MustConnect("mysql", cfg.MYSQL_DSN)
 	redis := lo.Must(rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{cfg.REDIS_DSN}}))
 
+	pg.MustExec(`CREATE TABLE IF NOT EXISTS telegram_notify_chat (
+								chat_id bigint,
+								user_id bigint,
+								disabled int2,
+								primary key (chat_id, user_id)
+			);`)
+
 	// Create bot and enable debugging info
 	// Note: Please keep in mind that default logger may expose sensitive information,
 	// use in development only

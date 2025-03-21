@@ -470,9 +470,6 @@ class OAuthHTTPServer:
             raise HTTPException(http.HTTPStatus.BAD_GATEWAY, "请尝试重新认证")
         data = msgspec.json.decode(resp.text, type=BangumiOAuthResponse)
 
-        await self.db.insert_chat_bangumi_map(
-            user_id=data.user_id, chat_id=redis_state.chat_id
-        )
 
         await self.tg.send_notification(
             chat_id=redis_state.chat_id, text=f"已经成功关联用户 {data.user_id}"
