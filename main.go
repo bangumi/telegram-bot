@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -91,6 +92,11 @@ func main() {
 			}
 
 			fmt.Println(len(msg.Value))
+
+			switch {
+			case strings.HasSuffix(msg.Topic, ".chii_pms"):
+			case strings.HasSuffix(msg.Topic, ".chii_notify"):
+			}
 		}
 	})
 
