@@ -1,6 +1,6 @@
 version: "3"
 
-dotenv: [ .env ]
+dotenv: [.env]
 
 tasks:
   default:
@@ -8,13 +8,17 @@ tasks:
     cmds:
       - task --list-all
 
-  dev:
+  build:
     sources:
-      - main.py
+      - "**/*.go"
     generates:
-      - a-file-not-exists
-    cmd: python main.py
+      - ./dist/app.exe
+    cmd: go build -o dist/app.exe
 
-  lint:
-    - mypy .
-    - ruff check .
+  dev:
+    deps:
+      - build
+    env:
+      HTTPS_PROXY: 'http://127.0.0.1:7890'
+      HTTP_PROXY: 'http://127.0.0.1:7890'
+    cmd: ./dist/app.exe

@@ -76,7 +76,7 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 	var redisState RedisOAuthState
-	json.Unmarshal(v, &state)
+	_ = json.Unmarshal(v, &state)
 
 	_, err = h.pg.ExecContext(req.Context(), `
 	INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)`,

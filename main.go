@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -37,7 +39,13 @@ func main() {
 
 	pg := sqlx.MustConnect("postgres", cfg.PG_DSN)
 	mysql := sqlx.MustConnect("mysql", cfg.MYSQL_DSN)
-	redis := lo.Must(rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{cfg.REDIS_DSN}}))
+
+	redisDSN := lo.Must(url.Parse(cfg.REDIS_DSN))
+	redisPassword, _ := redisDSN.User.Password()
+	redis := lo.Must(rueidis.NewClient(rueidis.ClientOption{
+		Password:    redisPassword,
+		InitAddress: []string{redisDSN.Host}},
+	))
 
 	pg.MustExec(`CREATE TABLE IF NOT EXISTS telegram_notify_chat (
 								chat_id bigint,
@@ -50,7 +58,10 @@ func main() {
 	// Note: Please keep in mind that default logger may expose sensitive information,
 	// use in development only
 	// (more on configuration in examples/configuration/main.go)
-	bot := lo.Must(telego.NewBot(cfg.BOT_TOKEN, telego.WithDefaultDebugLogger()))
+	bot := lo.Must(telego.NewBot(cfg.BOT_TOKEN,
+		telego.WithDefaultDebugLogger(),
+		telego.WithHTTPClient(http.DefaultClient)),
+	)
 
 	h := &handler{
 		config:      cfg,
