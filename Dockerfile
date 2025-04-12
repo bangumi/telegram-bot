@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:debian-slim@sha256:3c3ca15d7011789f6bd703acc8b8c2533da4ff94ce2d8281bf0420eb33db891f AS build
+FROM ghcr.io/astral-sh/uv:debian-slim@sha256:53abdd1f70b18b6a2e3212faa2c82bf79d0707c2facc0421c81187cfa071b7bb AS build
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY uv.lock pyproject.toml ./
 
 RUN uv export --no-group dev --frozen --no-emit-project > /app/requirements.txt
 
-FROM python:3.10-slim@sha256:f680fc3f447366d9be2ae53dc7a6447fe9b33311af209225783932704f0cb4e7
+FROM python:3.10-slim@sha256:06f6d69d229bb55fab83dded514e54eede977e33e92d855ba3f97ce0e3234abc
 
 ENV PIP_ROOT_USER_ACTION=ignore
 WORKDIR /app
