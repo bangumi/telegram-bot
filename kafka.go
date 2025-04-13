@@ -71,10 +71,8 @@ func (h *handler) handlePM(msg kafka.Message) error {
 		return nil
 	}
 
-	// Ignore old messages (older than 2 minutes)
-	// Use UnixMilli() for millisecond timestamp comparison
-	if time.Now().UnixMilli()-dv.Source.TsMs > 120*1000 {
-		log.Debug().Int64("ts_ms", dv.Source.TsMs).Msg("Skipping old PM message")
+	// skip notification older than 10 min
+	if time.Now().UnixMicro()-dv.Source.TsMs >= 60*10*1000 {
 		return nil
 	}
 
@@ -125,8 +123,8 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 		return nil
 	}
 
-	if dv.Source.TsMs-time.Now().UnixMicro() < 60*2*1000 {
-		// skip notification older than 2 min
+	// skip notification older than 10 min
+	if time.Now().UnixMicro()-dv.Source.TsMs >= 60*10*1000 {
 		return nil
 	}
 
