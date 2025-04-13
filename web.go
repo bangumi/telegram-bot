@@ -70,7 +70,6 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 	}
 
 	if resp.StatusCode() >= 300 {
-		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "请求错误", http.StatusBadRequest)
 		return
@@ -79,8 +78,8 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 	v, err := h.redis.Do(req.Context(), h.redis.B().Get().Key(redisStateKey(state)).Build()).AsBytes()
 	if err != nil {
 		if rueidis.IsRedisNil(err) {
-			w.WriteHeader(http.StatusBadRequest)
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte("请重新认证"))
 		}
 		return
@@ -100,8 +99,8 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 
 	if err != nil {
 		log.Err(err).Msg("failed to save data to pg")
-		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("发生未知错误"))
 		return
 	}
