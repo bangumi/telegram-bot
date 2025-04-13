@@ -42,7 +42,7 @@ func (h *handler) processKafkaMessage() error {
 		case "debezium.chii.bangumi.chii_pms":
 			err = h.handlePM(msg)
 		case "debezium.chii.bangumi.chii_notify":
-			h.handleNotify(msg)
+			err = h.handleNotify(msg)
 		}
 
 		if err != nil {
@@ -204,34 +204,4 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 	}
 
 	return nil
-}
-
-func (h *handler) getChats(ctx context.Context, userID int64) ([]int64, error) {
-	var chatIDs []int64
-	err := h.pg.SelectContext(ctx, &chatIDs, "SELECT chat_id FROM user_telegram_chats WHERE user_id = ? and disabled = 0", userID)
-	if err != nil {
-		return nil, err
-	}
-
-	return chatIDs, nil
-}
-
-type User struct {
-	Username string
-	Nickname string
-	UserID   int64
-}
-
-func (h *handler) getUserInfo(ctx context.Context, uid int64) (User, error) {
-	var user User
-	err := h.mysql.GetContext(ctx, &user,
-		`SELECT uid, username, nickname FROM chii_members WHERE uid = ? LIMIT 1`,
-		uid)
-	if err != nil {
-		log.Err(err).Int64("uid", uid).Msg("failed to query user info")
-		return User{}, err
-	}
-
-	return user, nil
-
 }

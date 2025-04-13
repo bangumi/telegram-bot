@@ -60,7 +60,7 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 			"client_secret": h.config.BangumiAppSecret,
 			"grant_type":    "authorization_code",
 			"code":          code,
-			"redirect_uri":  h.redirectURL,
+			"redirect_uri":  h.config.ExternalHttpAddress + "/callback",
 		}).
 		SetResult(&r).
 		Post("https://next.bgm.tv/oauth/access_token")

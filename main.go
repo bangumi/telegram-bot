@@ -13,26 +13,25 @@ import (
 	"github.com/mymmrac/telego"
 
 	"github.com/redis/rueidis"
-	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 	"go-simpler.org/env"
 	"golang.org/x/sync/errgroup"
 )
 
 type handler struct {
-	config      Config
-	mysql       *sqlx.DB
-	pg          *sqlx.DB
-	botUser     *telego.User
-	bot         *telego.Bot
-	redis       rueidis.Client
-	client      *resty.Client
-	redirectURL string
+	config  Config
+	mysql   *sqlx.DB
+	pg      *sqlx.DB
+	botUser *telego.User
+	bot     *telego.Bot
+	redis   rueidis.Client
+	client  *resty.Client
 }
 
 func main() {
 	var cfg Config
 	lo.Must0(env.Load(&cfg, nil))
+	cfg.ExternalHttpAddress = strings.TrimSuffix(cfg.ExternalHttpAddress, "/")
 
 	pg := sqlx.MustConnect("postgres", cfg.PgDsn)
 	mysql := sqlx.MustConnect("mysql", cfg.MysqlDsn)
@@ -51,10 +50,6 @@ func main() {
 								primary key (chat_id, user_id)
 			);`)
 
-	// Create bot and enable debugging info
-	// Note: Please keep in mind that default logger may expose sensitive information,
-	// use in development only
-	// (more on configuration in examples/configuration/main.go)
 	bot := lo.Must(telego.NewBot(cfg.BotToken,
 		telego.WithDefaultLogger(cfg.Debug, true),
 		telego.WithHTTPClient(http.DefaultClient)),
@@ -63,14 +58,13 @@ func main() {
 	currentBot := lo.Must(bot.GetMe(context.Background()))
 
 	h := &handler{
-		config:      cfg,
-		botUser:     currentBot,
-		pg:          pg,
-		mysql:       mysql,
-		bot:         bot,
-		client:      resty.New(),
-		redis:       redis,
-		redirectURL: strings.TrimRight(cfg.ExternalHttpAddress, "/") + "/callback",
+		config:  cfg,
+		botUser: currentBot,
+		pg:      pg,
+		mysql:   mysql,
+		bot:     bot,
+		client:  resty.New(),
+		redis:   redis,
 	}
 
 	var eg errgroup.Group
@@ -91,13 +85,4 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func (h *handler) disableChat(ctx context.Context, chatID int64) error {
-	_, dbErr := h.pg.ExecContext(ctx, "UPDATE telegram_notify_chat SET disabled = 1 WHERE chat_id = $1", chatID)
-	if dbErr != nil {
-		log.Err(dbErr).Int64("chat_id", chatID).Msg("failed to disable chat")
-	}
-
-	return dbErr
 }
