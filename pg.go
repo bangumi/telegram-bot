@@ -17,7 +17,7 @@ func (h *handler) disableChat(ctx context.Context, chatID int64) error {
 
 func (h *handler) getChats(ctx context.Context, userID int64) ([]int64, error) {
 	var chatIDs []int64
-	err := h.pg.SelectContext(ctx, &chatIDs, "SELECT chat_id FROM user_telegram_chats WHERE user_id = ? and disabled = 0", userID)
+	err := h.pg.SelectContext(ctx, &chatIDs, "SELECT chat_id FROM user_telegram_chats WHERE user_id = $1 and disabled = 0", userID)
 	if err != nil {
 		return nil, err
 	}
