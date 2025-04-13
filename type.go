@@ -14,20 +14,20 @@ func (s *Source) Timestamp() time.Time {
 }
 
 type ChiiNotify struct {
-	NtUid       int `json:"nt_uid"`
-	NtFromUid   int `json:"nt_from_uid"`
-	NtStatus    int `json:"nt_status"`
-	NtType      int `json:"nt_type"`
-	NtMid       int `json:"nt_mid"`        // ID of notify_field
-	NtRelatedId int `json:"nt_related_id"` // id of post
-	Timestamp   int `json:"nt_dateline"`
+	Uid       int64 `json:"nt_uid"`
+	FromUid   int64 `json:"nt_from_uid"`
+	Status    int   `json:"nt_status"`
+	Type      int   `json:"nt_type"`
+	Mid       int64 `json:"nt_mid"`        // ID of notify_field
+	RelatedId int   `json:"nt_related_id"` // id of post
+	Timestamp int   `json:"nt_dateline"`
 }
 
 type ChiiNotifyField struct {
-	NtfId    int    `json:"ntf_id"`
-	NtfRid   int    `json:"ntf_rid"`
-	NtfTitle string `json:"ntf_title"`
-	NtfHash  int    `json:"ntf_hash"`
+	NtfId    int    `db:"ntf_id"`
+	NtfRid   int    `db:"ntf_rid"`
+	NtfTitle string `db:"ntf_title"`
+	NtfHash  int    `db:"ntf_hash"`
 }
 
 type ChiiPm struct {
@@ -40,14 +40,11 @@ type ChiiPm struct {
 	Timestamp  int    `json:"msg_dateline"`
 }
 
-type NotifyValue struct {
-	After *ChiiNotify `json:"after"`
-	Op    string      `json:"op"` // 'r', 'c', 'd' ...
-}
-
 type DebeziumValue struct {
 	Before json.RawMessage `json:"before"`
 	After  json.RawMessage `json:"after"`
 	Op     string          `json:"op"` // 'r', 'c', 'd' ...
 	Source Source          `json:"source"`
 }
+
+const OpCreate = "c"

@@ -1,34 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import functools
 import html
-import http
 import logging
-import secrets
 import sys
 import time
 from threading import Thread
 from typing import Any, NamedTuple
 
 import aiorwlock
-import httpx
 import msgspec.json
 import redis.asyncio as redis
 import sslog
-import starlette
-import starlette.applications
 import telegram as tg
 import telegram.ext as tg_ext
-import uvicorn
-import yarl
 from async_lru import alru_cache
 from sslog import logger
-from starlette.exceptions import HTTPException
-from starlette.requests import Request
-from starlette.responses import PlainTextResponse, RedirectResponse, Response
-from telegram._utils.defaultvalue import DEFAULT_NONE, DefaultValue
 from telegram.constants import ParseMode
 
 import pg
@@ -36,8 +24,7 @@ from cfg import notify_types
 from kafka import KafkaConsumer, Msg
 from lib import config, debezium
 from lib.debezium import ChiiPm
-from mysql import MySql, User, create_mysql_client
-from pg import PG, create_pg_client
+from mysql import MySql, User
 
 logging.basicConfig(level=logging.INFO, handlers=[sslog.InterceptHandler()])
 logging.getLogger("httpx").setLevel(logging.WARN)
@@ -88,12 +75,6 @@ class TelegramApplication:
 
         application = builder.token(config.TELEGRAM_BOT_TOKEN).build()
 
-        # on different commands - answer in Telegram
-        application.add_handler(tg_ext.CommandHandler("start", self.start_command))
-        application.add_handler(tg_ext.CommandHandler("logout", self.logout_command))
-        application.add_handler(tg_ext.CommandHandler("help", self.start_command))
-        application.add_handler(tg_ext.CommandHandler("debug", self.debug_command))
-
         application.add_error_handler(self.error_handler)
 
         self.app = application
@@ -109,7 +90,6 @@ class TelegramApplication:
 
     async def start(self) -> None:
         await self.read_from_db()
-        self.start_tasks()
         await self.app.initialize()
         updater = self.app.updater
         if updater is None:
@@ -120,107 +100,10 @@ class TelegramApplication:
         await self.app.start()
 
     @logger.catch
-    async def start_command(
-        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        """Send a message when the command /help is issued."""
-        logger.trace("start command")
-        if update.message is None or update.effective_chat is None:
-            return
-
-        if user := await self.pg.is_authorized_user(chat_id=update.effective_chat.id):
-            await update.message.reply_text(
-                f"你已经作为用户 {user.user_id} 成功进行认证"
-            )
-            return
-
-        token = secrets.token_urlsafe(32)
-        await self.redis.set(
-            state_to_redis_key(token),
-            msgspec.json.encode(RedisOAuthState(chat_id=update.effective_chat.id)),
-            ex=60,
-        )
-        reply_markup = tg.InlineKeyboardMarkup(
-            [
-                [
-                    tg.InlineKeyboardButton(
-                        "认证 bangumi 账号",
-                        url=f"{config.EXTERNAL_HTTP_ADDRESS}/redirect?state={token}",
-                    )
-                ]
-            ]
-        )
-        await update.message.reply_text("请在60s内进行认证", reply_markup=reply_markup)
-
-    @logger.catch
-    async def help_command(
-        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        logger.trace("help command")
-        if update.message is None:
-            return
-        await update.message.reply_text("use command `/start`")
-
-    @logger.catch
-    async def logout_command(
-        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        logger.trace("logout command")
-        if update.effective_chat is None:
-            return
-        if update.message is None:
-            return
-
-        await self.pg.logout(chat_id=update.effective_chat.id)
-        await self.read_from_db()
-        await update.message.reply_text("成功登出")
-
-    @logger.catch
-    async def debug_command(
-        self, update: tg.Update, _context: tg_ext.ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        logger.trace("debug command")
-
-        if update.effective_chat is None:
-            return
-        if update.message is None:
-            return
-
-        await update.message.reply_text(f"chat_id: {update.effective_chat.id}")
-        await self.bot.send_message(
-            chat_id=update.effective_chat.id, text="debug command"
-        )
-
-    @logger.catch
     async def error_handler(
         self, _update: object, context: tg_ext.ContextTypes.DEFAULT_TYPE
     ) -> None:
         logger.exception("Exception while handling an update", error=context.error)
-
-    async def send_notification(
-        self,
-        chat_id: int,
-        text: str,
-        parse_mode: str | DefaultValue[None] = DEFAULT_NONE,
-    ) -> None:
-        try:
-            await self.bot.send_message(
-                chat_id=chat_id, text=text, parse_mode=parse_mode
-            )
-        except tg.error.Forbidden as e:
-            if e.message == "Forbidden: user is deactivated":
-                await self.pg.disable_chat(chat_id)
-                await self.read_from_db()
-            raise
-
-    async def get_chats(self, user_id: int) -> set[int] | None:
-        async with self.__lock.reader:
-            return self.__user_ids.get(user_id)
-
-    async def read_from_db(self) -> None:
-        rr = await self.pg.get_watched_users()
-        async with self.__lock.writer:
-            self.__user_ids = rr
 
     @sslog.logger.catch
     def __watch_kafka_messages(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -382,100 +265,3 @@ class TelegramApplication:
                 await self.send_notification(chat_id, text, parse_mode)
             except Exception:
                 logger.exception("failed to send message to chat")
-
-
-class OAuthHTTPServer:
-    def __init__(self, r: redis.Redis, db: PG, bot: TelegramApplication):
-        self.app = starlette.applications.Starlette()
-        self.app.add_route("/", self.index_path, ["GET"])
-        self.app.add_route("/redirect", self.oauth_redirect, ["GET"])
-        self.app.add_route("/callback", self.oauth_callback, ["GET"])
-        self.redirect_url = str(config.EXTERNAL_HTTP_ADDRESS.with_path("/callback"))
-
-        self.redis = r
-
-        self.http_client = httpx.AsyncClient()
-        self.db = db
-        self.tg = bot
-
-    async def start(self) -> None:
-        port = config.HTTP_PORT or config.EXTERNAL_HTTP_ADDRESS.port or 4098
-        server = uvicorn.Server(
-            uvicorn.Config(
-                app=self.app,
-                host="0.0.0.0",
-                lifespan="on",
-                workers=1,
-                port=port,
-                log_level=logging.WARN,
-                access_log=False,
-            )
-        )
-        logger.info("http server listen on port={}", port)
-        await server.serve()
-
-    async def index_path(self, _request: Request) -> Response:
-        return Response("index page")
-
-    async def oauth_redirect(self, request: Request) -> Response:
-        state = request.query_params.get("state")
-        if not state:
-            return PlainTextResponse("请求无效，请在 telegram 中重新认证")
-
-        return RedirectResponse(
-            str(
-                yarl.URL.build(
-                    scheme="https",
-                    host="bgm.tv",
-                    path="/oauth/authorize",
-                    query={
-                        "client_id": config.BANGUMI_APP_ID,
-                        "response_type": "code",
-                        "redirect_uri": self.redirect_url,
-                        "state": state,
-                    },
-                )
-            )
-        )
-
-    async def oauth_callback(self, request: Request) -> Response:
-        code = request.query_params.get("code")
-        state = request.query_params.get("state")
-        if not code or not state:
-            raise HTTPException(
-                http.HTTPStatus.BAD_REQUEST,
-                detail="非法请求，请使用telegram重新获取认证链接",
-            )
-        redis_state_value_raw = await self.redis.get(state_to_redis_key(state))
-        if redis_state_value_raw is None:
-            raise HTTPException(
-                http.HTTPStatus.BAD_REQUEST,
-                detail="非法请求，请使用telegram重新获取认证链接",
-            )
-
-        redis_state = msgspec.json.decode(redis_state_value_raw, type=RedisOAuthState)
-
-        resp = await self.http_client.post(
-            "https://bgm.tv/oauth/access_token",
-            data={
-                "client_id": config.BANGUMI_APP_ID,
-                "client_secret": config.BANGUMI_APP_SECRET,
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": self.redirect_url,
-            },
-        )
-        if resp.status_code >= 300:
-            logger.error("bad oauth response", data=resp.json())
-            raise HTTPException(http.HTTPStatus.BAD_GATEWAY, "请尝试重新认证")
-        data = msgspec.json.decode(resp.text, type=BangumiOAuthResponse)
-
-
-        await self.tg.send_notification(
-            chat_id=redis_state.chat_id, text=f"已经成功关联用户 {data.user_id}"
-        )
-
-        await self.tg.read_from_db()
-
-        return PlainTextResponse("你已经成功认证，请关闭页面返回 telegram")
-
