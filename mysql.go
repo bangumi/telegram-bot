@@ -25,3 +25,10 @@ func (h *handler) getUserInfo(ctx context.Context, uid int64) (User, error) {
 	return user, nil
 
 }
+
+func (h *handler) getNotifyField(ctx context.Context, mid int64) (ChiiNotifyField, error) {
+	var field ChiiNotifyField
+	err := h.mysql.GetContext(ctx, &field, "SELECT ntf_id,ntf_hash,ntf_rid,ntf_title from chii_notify_field where ntf_id = ? limit 1",
+		mid)
+	return field, err
+}

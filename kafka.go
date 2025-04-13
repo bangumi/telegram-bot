@@ -156,9 +156,7 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 		return nil
 	}
 
-	var field ChiiNotifyField
-	err = h.mysql.QueryRowxContext(ctx, "SELECT ntf_id,ntf_hash,ntf_rid,ntf_title from chii_notify_field where ntf_id = %s limit 1",
-		notify.Mid).StructScan(&field)
+	field, err := h.getNotifyField(ctx, notify.Mid)
 	if err != nil {
 		return err
 	}
