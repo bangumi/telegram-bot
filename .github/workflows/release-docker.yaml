@@ -28,7 +28,7 @@ jobs:
 
       - uses: trim21/actions/setup-go@master
 
-      - run: go build -o /dist/telegram-bot
+      - run: go build -o ./dist/telegram-bot
         env:
           CGO_ENABLED: "0"
 
