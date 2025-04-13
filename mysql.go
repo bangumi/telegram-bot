@@ -7,9 +7,9 @@ import (
 )
 
 type User struct {
-	Username string
-	Nickname string
-	UserID   int64
+	Username string `db:"username"`
+	Nickname string `db:"nickname"`
+	UserID   int64  `db:"uid"`
 }
 
 func (h *handler) getUserInfo(ctx context.Context, uid int64) (User, error) {
