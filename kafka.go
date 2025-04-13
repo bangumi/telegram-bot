@@ -167,32 +167,20 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 
 	// Construct URL
 	url := strings.TrimRight(cfg.URL, "/") + "/" + strconv.FormatInt(notify.Mid, 10)
-
 	if notify.Mid > 0 {
 		url += cfg.Anchor + strconv.FormatInt(notify.Mid, 10)
 	}
 
-	var text string
-	if cfg.Temp != nil {
-		var buf = bytes.NewBuffer(nil)
-		err = cfg.Temp.Execute(buf, TmplData{
-			Title:        field.NtfTitle,
-			FromNickname: fromUser.Nickname,
-		})
-		if err != nil {
-			return err
-		}
-		text = buf.String()
-	} else {
-		text = "<code>" + html.EscapeString(field.NtfTitle) + "</code>"
-		if cfg.Suffix != "" {
-			text += " " + cfg.Prefix + " <b>" + html.EscapeString(field.NtfTitle) + "</b> " + cfg.Suffix
-		} else {
-			text += cfg.Prefix
-		}
+	var buf = bytes.NewBuffer(nil)
+	err = cfg.Temp.Execute(buf, TmplData{
+		Title:        field.NtfTitle,
+		FromNickname: fromUser.Nickname,
+	})
+	if err != nil {
+		return err
 	}
 
-	text = text + "\n\n" + url
+	var text = buf.String() + "\n\n" + url
 
 	log.Info().Int64("user_id", notify.Uid).Msg("should send message for notification")
 
