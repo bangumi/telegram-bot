@@ -1,13 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"html"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/grbit/go-json"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 	"github.com/rs/zerolog/log"
@@ -49,6 +51,68 @@ func (h *handler) processKafkaMessage() error {
 	}
 }
 func (h *handler) handlePM(msg kafka.Message) error {
+	if len(msg.Value) == 0 {
+		return nil
+	}
+
+	var dv DebeziumValue
+	if err := json.Unmarshal(msg.Value, &dv); err != nil {
+		log.Err(err).Bytes("value", msg.Value).Msg("failed to unmarshal debezium value for PM")
+		return err // Return error if unmarshalling fails
+	}
+
+	// Ignore delete or update operations, only handle create
+	if dv.Op != OpCreate {
+		return nil
+	}
+
+	// Ignore events without payload
+	if len(dv.After) == 0 {
+		return nil
+	}
+
+	// Ignore old messages (older than 2 minutes)
+	// Use UnixMilli() for millisecond timestamp comparison
+	if time.Now().UnixMilli()-dv.Source.TsMs > 120*1000 {
+		log.Debug().Int64("ts_ms", dv.Source.TsMs).Msg("Skipping old PM message")
+		return nil
+	}
+
+	var pm ChiiPm
+	if err := json.Unmarshal(dv.After, &pm); err != nil {
+		log.Err(err).RawJSON("after", dv.After).Msg("failed to unmarshal chii_pms after value")
+		return err // Return error if unmarshalling fails
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	// Get the chats for the recipient user
+	chats, err := h.getChats(ctx, pm.MsgRid)
+	if err != nil {
+		// Log error but don't stop processing other messages
+		log.Err(err).Int64("user_id", pm.MsgRid).Msg("failed to get chats for PM recipient")
+		return err // Return error if getting chats fails
+	}
+	if len(chats) == 0 {
+		return nil // No chats to send to
+	}
+
+	// Get sender user info
+	fromUser, err := h.getUserInfo(ctx, pm.MsgSid)
+	if err != nil {
+		return err
+	}
+
+	pmURL := fmt.Sprintf("https://bgm.tv/pm/view/%d.chii", pm.MsgId)
+
+	text := "收到来自 <b>" + html.EscapeString(fromUser.Nickname) + "</b> 的新私信"
+	text = text + "\n\n" + pmURL
+
+	for _, chatID := range chats {
+		message := tu.Message(tu.ID(chatID), text).WithParseMode(telego.ModeHTML)
+		_, _ = h.bot.SendMessage(ctx, message)
+	}
 	return nil
 }
 
@@ -75,7 +139,7 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 	defer cancel()
 
 	// Get the chats for this user
-	chats, err := h.getChats(notify.Uid)
+	chats, err := h.getChats(ctx, notify.Uid)
 	if err != nil {
 		return err
 	}
@@ -83,7 +147,7 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 		return nil
 	}
 
-	cfg, hasValue := getNotifyConfig(notify.Type)
+	cfg, hasValue := notifyConfigs[notify.Type]
 	if !hasValue {
 		log.Warn().Msgf("missing config for type %d", notify.Type)
 		return nil
@@ -96,6 +160,11 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 		return err
 	}
 
+	fromUser, err := h.getUserInfo(ctx, notify.FromUid)
+	if err != nil {
+		return err
+	}
+
 	// Construct URL
 	url := strings.TrimRight(cfg.URL, "/") + "/" + strconv.FormatInt(notify.Mid, 10)
 
@@ -103,14 +172,27 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 		url += cfg.Anchor + strconv.FormatInt(notify.Mid, 10)
 	}
 
-	text := "<code>" + html.EscapeString(field.NtfTitle) + "</code>"
-	if cfg.Suffix != "" {
-		text += " " + cfg.Prefix + " <b>" + html.EscapeString(field.NtfTitle) + "</b> " + cfg.Suffix
+	var text string
+	if cfg.Temp != nil {
+		var buf = bytes.NewBuffer(nil)
+		err = cfg.Temp.Execute(buf, TmplData{
+			Title:        field.NtfTitle,
+			FromNickname: fromUser.Nickname,
+		})
+		if err != nil {
+			return err
+		}
+		text = buf.String()
 	} else {
-		text += cfg.Prefix
+		text = "<code>" + html.EscapeString(field.NtfTitle) + "</code>"
+		if cfg.Suffix != "" {
+			text += " " + cfg.Prefix + " <b>" + html.EscapeString(field.NtfTitle) + "</b> " + cfg.Suffix
+		} else {
+			text += cfg.Prefix
+		}
 	}
 
-	text += "\n\n" + url
+	text = text + "\n\n" + url
 
 	log.Info().Int64("user_id", notify.Uid).Msg("should send message for notification")
 
@@ -124,6 +206,32 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 	return nil
 }
 
-func (h *handler) getChats(userID int64) ([]int64, error) {
-	return nil, nil
+func (h *handler) getChats(ctx context.Context, userID int64) ([]int64, error) {
+	var chatIDs []int64
+	err := h.pg.SelectContext(ctx, &chatIDs, "SELECT chat_id FROM user_telegram_chats WHERE user_id = ? and disabled = 0", userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return chatIDs, nil
+}
+
+type User struct {
+	Username string
+	Nickname string
+	UserID   int64
+}
+
+func (h *handler) getUserInfo(ctx context.Context, uid int64) (User, error) {
+	var user User
+	err := h.mysql.GetContext(ctx, &user,
+		`SELECT uid, username, nickname FROM chii_members WHERE uid = ? LIMIT 1`,
+		uid)
+	if err != nil {
+		log.Err(err).Int64("uid", uid).Msg("failed to query user info")
+		return User{}, err
+	}
+
+	return user, nil
+
 }
