@@ -31,9 +31,9 @@ type ChiiNotifyField struct {
 }
 
 type ChiiPm struct {
-	MsgId      int64    `json:"msg_id"`
-	MsgSid     int64    `json:"msg_sid"` // sender user id
-	MsgRid     int64    `json:"msg_rid"` // receiver user id
+	MsgId      int64  `json:"msg_id"`
+	MsgSid     int64  `json:"msg_sid"` // sender user id
+	MsgRid     int64  `json:"msg_rid"` // receiver user id
 	MsgNew     int    `json:"msg_new"`
 	MsgTitle   string `json:"msg_title"`
 	MsgMessage string `json:"msg_message"`
