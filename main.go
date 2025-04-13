@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/mymmrac/telego"
+	"github.com/rs/zerolog"
 
 	"github.com/redis/rueidis"
 	"github.com/samber/lo"
@@ -26,6 +28,11 @@ type handler struct {
 	bot     *telego.Bot
 	redis   rueidis.Client
 	client  *resty.Client
+}
+
+func init() {
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+	zerolog.MessageFieldName = "msg"
 }
 
 func main() {
