@@ -1,19 +1,21 @@
 package main
 
 type Config struct {
-	BOT_TOKEN string `env:"TELEGRAM_BOT_TOKEN"`
+	BotToken string `env:"TELEGRAM_BOT_TOKEN"`
 
-	BANGUMI_APP_ID     string `env:"BANGUMI_APP_ID"`
-	BANGUMI_APP_SECRET string `env:"BANGUMI_APP_SECRET"`
+	BangumiAppId     string `env:"BANGUMI_APP_ID"`
+	BangumiAppSecret string `env:"BANGUMI_APP_SECRET"`
 
-	EXTERNAL_HTTP_ADDRESS string `env:"EXTERNAL_HTTP_ADDRESS" default:"http://127.0.0.1:4562"`
+	ExternalHttpAddress string `env:"EXTERNAL_HTTP_ADDRESS" default:"http://127.0.0.1:4562"`
 
-	PORT uint16 `env:"PORT" default:"4096"`
+	Port uint16 `env:"PORT" default:"4096"`
 
-	REDIS_DSN string `env:"REDIS_DSN"`
+	RedisDsn string `env:"REDIS_DSN"`
 
-	PG_DSN    string `env:"PG_DSN"`
-	MYSQL_DSN string `env:"MYSQL_DSN"`
+	PgDsn    string `env:"PG_DSN"`
+	MysqlDsn string `env:"MYSQL_DSN"`
 
-	KAFKA_BROKER string `env:"KAFKA_BROKER"`
+	KafkaBroker string `env:"KAFKA_BROKER"`
+
+	Debug bool `env:"DEBUG" default:"false"`
 }

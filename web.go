@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/mymmrac/telego"
+	tu "github.com/mymmrac/telego/telegoutil"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
 )
@@ -21,7 +21,7 @@ func (h *handler) ListenAndServe() error {
 	mux.Get("/", http.RedirectHandler(fmt.Sprintf("https://t.me/%s", h.botUser.Username), http.StatusFound).ServeHTTP)
 	mux.Get("/callback", h.handleOAuthCallback)
 	mux.Get("/redirect", h.oauthRedirect)
-	return http.ListenAndServe(fmt.Sprintf(":%d", h.config.PORT), mux)
+	return http.ListenAndServe(fmt.Sprintf(":%d", h.config.Port), mux)
 }
 
 func (h *handler) oauthRedirect(w http.ResponseWriter, r *http.Request) {
@@ -32,9 +32,9 @@ func (h *handler) oauthRedirect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := url.Values{}
-	query.Add("client_id", h.config.BANGUMI_APP_ID)
+	query.Add("client_id", h.config.BangumiAppId)
 	query.Add("response_type", "code")
-	query.Add("redirect_uri", fmt.Sprintf("%s/callback", h.config.EXTERNAL_HTTP_ADDRESS))
+	query.Add("redirect_uri", fmt.Sprintf("%s/callback", h.config.ExternalHttpAddress))
 	query.Add("state", state)
 
 	http.Redirect(w, r, oauthURL+"?"+query.Encode(), http.StatusFound)
@@ -56,8 +56,8 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 
 	resp, err := h.client.R().
 		SetFormData(map[string]string{
-			"client_id":     h.config.BANGUMI_APP_ID,
-			"client_secret": h.config.BANGUMI_APP_SECRET,
+			"client_id":     h.config.BangumiAppId,
+			"client_secret": h.config.BangumiAppSecret,
 			"grant_type":    "authorization_code",
 			"code":          code,
 			"redirect_uri":  h.redirectURL,
@@ -76,7 +76,7 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	v, err := h.redis.Do(req.Context(), h.redis.B().Get().Key("tg-bot-oauth:"+state).Build()).AsBytes()
+	v, err := h.redis.Do(req.Context(), h.redis.B().Get().Key(redisStateKey(state)).Build()).AsBytes()
 	if err != nil {
 		if rueidis.IsRedisNil(err) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -87,7 +87,7 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 	}
 
 	var redisState RedisOAuthState
-	_ = json.Unmarshal(v, &state)
+	_ = json.Unmarshal(v, &redisState)
 
 	_, err = h.pg.ExecContext(req.Context(), `
 	INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)
@@ -106,27 +106,29 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	_, _ = h.bot.SendMessage(req.Context(), &telego.SendMessageParams{
-		BusinessConnectionID: "",
-		ChatID:               telego.ChatID{ID: redisState.ChatID},
-		Text:                 fmt.Sprintf("已经成功关联用户 %s", r.UserID),
-	})
+	_, err = h.bot.SendMessage(req.Context(), tu.Message(
+		tu.ID(redisState.ChatID),
+		fmt.Sprintf("已经成功关联用户 %s", r.UserID),
+	))
 
-	// Redirect or display success message
+	if err != nil {
+		log.Err(err).Msg("failed to send message to user")
+	}
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("你已经成功认证，请关闭页面返回 telegram"))
+
 }
 
 type OAuthAccessTokenResponse struct {
-	// AccessToken  string `json:"access_token"`
-	// TokenType    string `json:"token_type"`
-	// ExpiresIn    int    `json:"expires_in"`
-	// RefreshToken string `json:"refresh_token"`
-	// Scope        string `json:"scope"`
 	UserID string `json:"user_id"`
 }
 
 // RedisOAuthState represents the OAuth state stored in Redis
 type RedisOAuthState struct {
-	ChatID int64 `json:"chat_id" db:"chat_id"`
+	ChatID int64 `json:"chat_id"`
+}
+
+func redisStateKey(state string) string {
+	return "tg-bot-oauth:" + state
 }
