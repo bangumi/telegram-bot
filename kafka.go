@@ -168,8 +168,8 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 
 	// Construct URL
 	url := strings.TrimRight(cfg.URL, "/") + "/" + strconv.FormatInt(notify.Mid, 10)
-	if notify.Mid > 0 {
-		url += cfg.Anchor + strconv.FormatInt(notify.Mid, 10)
+	if notify.RelatedId > 0 {
+		url += cfg.Anchor + strconv.FormatInt(notify.RelatedId, 10)
 	}
 
 	var buf = bytes.NewBuffer(nil)

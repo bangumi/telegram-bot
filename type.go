@@ -19,7 +19,7 @@ type ChiiNotify struct {
 	Status    int   `json:"nt_status"`
 	Type      int   `json:"nt_type"`
 	Mid       int64 `json:"nt_mid"`        // ID of notify_field
-	RelatedId int   `json:"nt_related_id"` // id of post
+	RelatedId int64 `json:"nt_related_id"` // id of post
 	Timestamp int   `json:"nt_dateline"`
 }
 
