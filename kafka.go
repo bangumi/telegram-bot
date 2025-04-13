@@ -111,7 +111,9 @@ func (h *handler) handlePM(msg kafka.Message) error {
 
 	for _, chatID := range chats {
 		message := tu.Message(tu.ID(chatID), text).WithParseMode(telego.ModeHTML)
-		_, _ = h.bot.SendMessage(ctx, message)
+		if _, err := h.bot.SendMessage(ctx, message); err != nil {
+			log.Err(err).Int64("chat_id", chatID).Msg("failed to send notification")
+		}
 	}
 	return nil
 }
@@ -184,9 +186,9 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 
 	log.Info().Int64("user_id", notify.Uid).Msg("should send message for notification")
 
-	// Send message to all chats
 	for _, chatID := range chats {
-		if _, err := h.bot.SendMessage(ctx, tu.Message(tu.ID(chatID), text).WithParseMode(telego.ModeHTML)); err != nil {
+		message := tu.Message(tu.ID(chatID), text).WithParseMode(telego.ModeHTML)
+		if _, err := h.bot.SendMessage(ctx, message); err != nil {
 			log.Err(err).Int64("chat_id", chatID).Msg("failed to send notification")
 		}
 	}
