@@ -75,7 +75,7 @@ func (h *handler) handlePM(msg kafka.Message) error {
 	}
 
 	// skip notification older than 10 min
-	if time.Now().UnixMicro()-dv.Source.TsMs >= 60*10*1000 {
+	if time.Since(dv.Source.Timestamp()) >= time.Minute*10 {
 		return nil
 	}
 
@@ -127,7 +127,7 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 	}
 
 	// skip notification older than 10 min
-	if time.Now().UnixMicro()-dv.Source.TsMs >= 60*10*1000 {
+	if time.Since(dv.Source.Timestamp()) >= time.Minute*10 {
 		return nil
 	}
 
