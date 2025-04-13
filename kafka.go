@@ -46,7 +46,7 @@ func (h *handler) processKafkaMessage() error {
 		}
 
 		if err != nil {
-			log.Err(err).Msg("failed to parse kafka message")
+			log.Err(err).Msg("failed to process kafka message")
 		}
 	}
 }
