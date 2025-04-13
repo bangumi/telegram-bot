@@ -12,9 +12,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/mymmrac/telego"
-	"github.com/rs/zerolog"
-
 	"github.com/redis/rueidis"
+	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"go-simpler.org/env"
 	"golang.org/x/sync/errgroup"
