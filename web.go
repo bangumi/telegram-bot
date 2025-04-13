@@ -9,11 +9,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mymmrac/telego"
+	"github.com/redis/rueidis"
+	"github.com/rs/zerolog/log"
 )
+
+const oauthURL = "https://next.bgm.tv/oauth/authorize"
 
 func (h *handler) ListenAndServe() error {
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)
+	mux.Get("/", http.RedirectHandler(fmt.Sprintf("https://t.me/%s", h.botUser.Username), http.StatusFound).ServeHTTP)
 	mux.Get("/callback", h.handleOAuthCallback)
 	mux.Get("/redirect", h.oauthRedirect)
 	return http.ListenAndServe(fmt.Sprintf(":%d", h.config.PORT), mux)
@@ -26,15 +31,13 @@ func (h *handler) oauthRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL := "https://next.bgm.tv/oauth/authorize"
-
 	query := url.Values{}
 	query.Add("client_id", h.config.BANGUMI_APP_ID)
 	query.Add("response_type", "code")
-	query.Add("redirect_uri", "your_redirect_url")
+	query.Add("redirect_uri", fmt.Sprintf("%s/callback", h.config.EXTERNAL_HTTP_ADDRESS))
 	query.Add("state", state)
 
-	http.Redirect(w, r, redirectURL+"?"+query.Encode(), http.StatusFound)
+	http.Redirect(w, r, oauthURL+"?"+query.Encode(), http.StatusFound)
 }
 
 // handleOAuthCallback processes the OAuth callback request
@@ -67,22 +70,41 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 	}
 
 	if resp.StatusCode() >= 300 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		http.Error(w, "请求错误", http.StatusBadRequest)
 		return
 	}
 
 	v, err := h.redis.Do(req.Context(), h.redis.B().Get().Key("tg-bot-oauth:"+state).Build()).AsBytes()
 	if err != nil {
+		if rueidis.IsRedisNil(err) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte("请重新认证"))
+		}
 		return
 	}
+
 	var redisState RedisOAuthState
 	_ = json.Unmarshal(v, &state)
 
 	_, err = h.pg.ExecContext(req.Context(), `
-	INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)`,
+	INSERT INTO telegram_notify_chat(chat_id, user_id, disabled) VALUES ($1, $2, 0)
+	on conflict (chat_id, user_id) do update
+	set disabled = 0
+	`,
 		redisState.ChatID,
 		r.UserID,
 	)
+
+	if err != nil {
+		log.Err(err).Msg("failed to save data to pg")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("发生未知错误"))
+		return
+	}
 
 	_, _ = h.bot.SendMessage(req.Context(), &telego.SendMessageParams{
 		BusinessConnectionID: "",
@@ -91,7 +113,7 @@ func (h *handler) handleOAuthCallback(w http.ResponseWriter, req *http.Request) 
 	})
 
 	// Redirect or display success message
-	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("你已经成功认证，请关闭页面返回 telegram"))
 }
 

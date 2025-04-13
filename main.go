@@ -10,9 +10,12 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gofrs/uuid/v5"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/mymmrac/telego"
+	th "github.com/mymmrac/telego/telegohandler"
+	tu "github.com/mymmrac/telego/telegoutil"
 	"github.com/redis/rueidis"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
@@ -23,8 +26,9 @@ import (
 
 type handler struct {
 	config      Config
-	pg          *sqlx.DB
 	mysql       *sqlx.DB
+	pg          *sqlx.DB
+	botUser     *telego.User
 	bot         *telego.Bot
 	redis       rueidis.Client
 	client      *resty.Client
@@ -63,39 +67,53 @@ func main() {
 		telego.WithHTTPClient(http.DefaultClient)),
 	)
 
+	currentBot := lo.Must(bot.GetMe(context.Background()))
+
 	h := &handler{
 		config:      cfg,
+		botUser:     currentBot,
 		pg:          pg,
 		mysql:       mysql,
 		bot:         bot,
+		client:      resty.New(),
 		redis:       redis,
 		redirectURL: strings.TrimRight(cfg.EXTERNAL_HTTP_ADDRESS, "/") + "/callback",
 	}
 
-	// Call method getMe (https://core.telegram.org/bots/api#getme)
-	botUser := lo.Must(bot.GetMe(context.Background()))
-
 	var eg errgroup.Group
 
 	eg.Go(func() error {
-		// Get updates channel
-		// (more on configuration in examples/updates_long_polling/main.go)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-
-		updates, err := bot.UpdatesViaLongPolling(ctx, nil)
+		updates, err := bot.UpdatesViaLongPolling(context.Background(), nil)
 		if err != nil {
 			return err
 		}
 
-		// Loop through all updates when they came
-		for update := range updates {
-			fmt.Printf("Update: %+v\n", update)
-		}
+		bh := lo.Must(th.NewBotHandler(bot, updates))
+		// Stop handling updates
+		defer func() { _ = bh.Stop() }()
 
-		// Print Bot information
-		fmt.Printf("Bot user: %+v\n", botUser)
-		return nil
+		bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
+			state := uuid.Must(uuid.NewV4()).String()
+
+			ctx, cancel := ctx.WithTimeout(time.Second * 5)
+			defer cancel()
+
+			err := redis.Do(ctx, redis.B().Set().Key("tg-bot-oauth:"+state).Value(rueidis.JSON(RedisOAuthState{
+				ChatID: message.Chat.ID,
+			})).ExSeconds(60).Build()).Error()
+			if err != nil {
+				return err
+			}
+
+			_, _ = bot.SendMessage(ctx, tu.Message(tu.ID(message.Chat.ID), "请在 60s 内进行认证").
+				WithReplyMarkup(tu.InlineKeyboard(
+					tu.InlineKeyboardRow(tu.InlineKeyboardButton("认证 bangumi 账号").
+						WithURL(fmt.Sprintf("%s/redirect?state=%s", cfg.EXTERNAL_HTTP_ADDRESS, state)))),
+				))
+			return nil
+		}, th.CommandEqual("start"))
+
+		return bh.Start()
 	})
 
 	eg.Go(func() error {
