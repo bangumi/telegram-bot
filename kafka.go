@@ -167,7 +167,7 @@ func (h *handler) handleNotify(msg kafka.Message) error {
 	}
 
 	// Construct URL
-	url := strings.TrimRight(cfg.URL, "/") + "/" + strconv.FormatInt(notify.Mid, 10)
+	url := strings.TrimRight(cfg.URL, "/") + "/" + strconv.FormatInt(notify.RelatedId, 10)
 	if notify.RelatedId > 0 {
 		url += cfg.Anchor + strconv.FormatInt(notify.RelatedId, 10)
 	}
