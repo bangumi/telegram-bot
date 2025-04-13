@@ -6,7 +6,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-
 type User struct {
 	Username string
 	Nickname string
