@@ -50,6 +50,9 @@ func (h *handler) processKafkaMessage() error {
 		}
 	}
 }
+
+var nullBytes = []byte("null")
+
 func (h *handler) handlePM(msg kafka.Message) error {
 	if len(msg.Value) == 0 {
 		return nil
@@ -67,7 +70,7 @@ func (h *handler) handlePM(msg kafka.Message) error {
 	}
 
 	// Ignore events without payload
-	if len(dv.After) == 0 {
+	if bytes.Equal(nullBytes, dv.After) {
 		return nil
 	}
 
@@ -119,7 +122,7 @@ func (h *handler) handlePM(msg kafka.Message) error {
 func (h *handler) handleNotify(msg kafka.Message) error {
 	var dv DebeziumValue
 	_ = json.Unmarshal(msg.Value, &dv)
-	if len(dv.After) == 0 {
+	if bytes.Equal(nullBytes, dv.After) {
 		return nil
 	}
 
