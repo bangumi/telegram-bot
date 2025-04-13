@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -87,19 +90,35 @@ func main() {
 	log.Info().Msg("start main loop")
 	var eg errgroup.Group
 	eg.Go(func() error {
-		return h.processTelegramMessage()
+		return catchPanic(h.processTelegramMessage)
 	})
 
 	eg.Go(func() error {
-		return h.ListenAndServe()
+		return catchPanic(h.ListenAndServe)
 	})
 
 	eg.Go(func() error {
-		return h.processKafkaMessage()
+		return catchPanic(h.processKafkaMessage)
 	})
 
 	err := eg.Wait()
 	if err != nil {
-		panic(err)
+		log.Err(err).Msg("failed")
+		os.Exit(1)
 	}
+}
+
+// catchPanic executes the given function f.
+// If f panics, it recovers the panic and returns it as an error, including the stack trace.
+// Otherwise, it returns the error returned by f.
+func catchPanic(f func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Capture the stack trace along with the panic value.
+			err = fmt.Errorf("panic recovered: %v\n%s", r, debug.Stack())
+		}
+	}()
+
+	err = f()  // Execute the function and capture its return value.
+	return err // Return the captured error or the error created from panic recovery.
 }
