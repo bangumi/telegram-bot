@@ -25,7 +25,7 @@ type ChiiNotify struct {
 
 type ChiiNotifyField struct {
 	NtfId    int    `db:"ntf_id"`
-	NtfRid   int64    `db:"ntf_rid"`
+	NtfRid   int64  `db:"ntf_rid"`
 	NtfTitle string `db:"ntf_title"`
 	NtfHash  int    `db:"ntf_hash"`
 }
