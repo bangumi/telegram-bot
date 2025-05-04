@@ -36,6 +36,8 @@ type handler struct {
 func init() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.MessageFieldName = "msg"
+
+	log.Logger = log.With().Caller().Stack().Logger()
 }
 
 func main() {
