@@ -12,7 +12,7 @@ require (
 	github.com/mymmrac/telego v1.1.1
 	github.com/redis/rueidis v1.0.60
 	github.com/rs/zerolog v1.34.0
-	github.com/samber/lo v1.50.0
+	github.com/samber/lo v1.51.0
 	github.com/segmentio/kafka-go v0.4.48
 	go-simpler.org/env v0.12.0
 	golang.org/x/sync v0.14.0
