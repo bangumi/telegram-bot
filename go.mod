@@ -9,7 +9,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
-	github.com/mymmrac/telego v1.1.1
+	github.com/mymmrac/telego v1.2.0
 	github.com/redis/rueidis v1.0.62
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/lo v1.51.0
@@ -20,8 +20,8 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/andybalholm/brotli v1.1.1 // indirect
-	github.com/bytedance/sonic v1.13.2 // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/bytedance/sonic v1.13.3 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/grbit/go-json v0.11.0 // indirect
@@ -32,10 +32,10 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.62.0 // indirect
+	github.com/valyala/fasthttp v1.64.0 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
-	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 )
