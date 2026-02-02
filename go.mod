@@ -9,7 +9,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
-	github.com/mymmrac/telego v1.4.0
+	github.com/mymmrac/telego v1.5.0
 	github.com/redis/rueidis v1.0.70
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/lo v1.52.0
@@ -33,7 +33,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.68.0 // indirect
+	github.com/valyala/fasthttp v1.69.0 // indirect
 	github.com/valyala/fastjson v1.6.7 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/net v0.48.0 // indirect
