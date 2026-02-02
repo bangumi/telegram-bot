@@ -8,7 +8,7 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/mymmrac/telego v1.5.0
 	github.com/redis/rueidis v1.0.70
 	github.com/rs/zerolog v1.34.0
