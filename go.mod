@@ -13,7 +13,7 @@ require (
 	github.com/redis/rueidis v1.0.71
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/lo v1.52.0
-	github.com/segmentio/kafka-go v0.4.49
+	github.com/segmentio/kafka-go v0.4.50
 	go-simpler.org/env v0.12.0
 	golang.org/x/sync v0.19.0
 )
