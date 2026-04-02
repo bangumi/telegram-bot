@@ -11,7 +11,7 @@ require (
 	github.com/lib/pq v1.11.2
 	github.com/mymmrac/telego v1.7.0
 	github.com/redis/rueidis v1.0.72
-	github.com/rs/zerolog v1.34.0
+	github.com/rs/zerolog v1.35.0
 	github.com/samber/lo v1.53.0
 	github.com/segmentio/kafka-go v0.4.50
 	go-simpler.org/env v0.12.0
@@ -28,8 +28,8 @@ require (
 	github.com/grbit/go-json v0.11.0 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
