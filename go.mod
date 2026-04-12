@@ -10,7 +10,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.12.2
 	github.com/mymmrac/telego v1.7.0
-	github.com/redis/rueidis v1.0.72
+	github.com/redis/rueidis v1.0.74
 	github.com/rs/zerolog v1.35.0
 	github.com/samber/lo v1.53.0
 	github.com/segmentio/kafka-go v0.4.50
