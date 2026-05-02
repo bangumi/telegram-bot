@@ -9,7 +9,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.12.3
-	github.com/mymmrac/telego v1.7.0
+	github.com/mymmrac/telego v1.8.0
 	github.com/redis/rueidis v1.0.74
 	github.com/rs/zerolog v1.35.1
 	github.com/samber/lo v1.53.0
