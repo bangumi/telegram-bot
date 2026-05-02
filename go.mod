@@ -11,7 +11,7 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/mymmrac/telego v1.7.0
 	github.com/redis/rueidis v1.0.74
-	github.com/rs/zerolog v1.35.0
+	github.com/rs/zerolog v1.35.1
 	github.com/samber/lo v1.53.0
 	github.com/segmentio/kafka-go v0.4.51
 	go-simpler.org/env v0.12.0
