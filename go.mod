@@ -15,7 +15,7 @@ require (
 	github.com/samber/lo v1.53.0
 	github.com/segmentio/kafka-go v0.4.51
 	go-simpler.org/env v0.12.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
 )
 
 require (
