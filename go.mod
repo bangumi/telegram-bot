@@ -9,7 +9,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.12.3
-	github.com/mymmrac/telego v1.9.0
+	github.com/mymmrac/telego v1.10.0
 	github.com/redis/rueidis v1.0.76
 	github.com/rs/zerolog v1.35.1
 	github.com/samber/lo v1.53.0
@@ -22,7 +22,7 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic v1.15.1 // indirect
+	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/grbit/go-json v0.11.0 // indirect
