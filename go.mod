@@ -3,7 +3,7 @@ module app
 go 1.26.8
 
 require (
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gofrs/uuid/v5 v5.5.1
